@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Friendsgiving Feud</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:#000;color:#fff;font-family:"Arial Black","Arial Bold",Gadget,"Helvetica Neue",Arial,sans-serif}
+body.board-mode{overflow:hidden}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#01061a;overflow:hidden}
+#stage{flex:none;width:1600px;height:900px;position:relative;overflow:hidden;transform-origin:center center;
+  background:radial-gradient(ellipse at 50% 42%,#2468e0 0%,#0c3492 38%,#051a52 72%,#020a26 100%)}
+#rays{position:absolute;left:50%;top:45%;width:2600px;height:2600px;margin:-1300px 0 0 -1300px;
+  background:repeating-conic-gradient(from 0deg,rgba(255,255,255,.055) 0deg 5deg,transparent 5deg 15deg);animation:spin 90s linear infinite;pointer-events:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+#screen{position:absolute;inset:0}
+.abs{position:absolute}
+
+/* ---------- gold frames ---------- */
+.gold{background:linear-gradient(180deg,#fff3b0 0%,#f2c64a 22%,#c98d12 55%,#ffe27a 80%,#a86d06 100%);
+  box-shadow:0 0 0 4px #5a3800,0 18px 50px rgba(0,0,0,.65),inset 0 2px 0 rgba(255,255,255,.7)}
+.team{top:26px;width:310px;height:156px;border-radius:22px;padding:9px}
+.team .nm{height:42px;display:flex;align-items:center;justify-content:center;color:#3b2300;font-size:25px;text-transform:uppercase;
+  letter-spacing:1px;white-space:nowrap;overflow:hidden;padding:0 8px;text-shadow:0 1px 0 rgba(255,255,255,.5)}
+.team .sc,.bank .sc{background:linear-gradient(#0a2466,#04133d);border-radius:14px;height:88px;display:flex;align-items:center;justify-content:center;
+  font-size:74px;text-shadow:0 4px 0 #000,0 0 22px rgba(120,180,255,.6);box-shadow:inset 0 0 18px rgba(0,0,0,.8)}
+.team.pulse{animation:pulse 1.2s ease 2}
+@keyframes pulse{50%{transform:scale(1.09);filter:brightness(1.35)}}
+.bank{left:665px;top:26px;width:270px;height:156px;border-radius:22px;padding:9px}
+.bank .nm{height:42px;display:flex;align-items:center;justify-content:center;color:#3b2300;font-size:22px;letter-spacing:3px}
+.mult{position:absolute;left:50%;transform:translateX(-50%);bottom:-26px;background:#d1260e;border:3px solid #ffd54a;border-radius:20px;
+  padding:3px 16px;font-size:17px;letter-spacing:2px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.6)}
+.qbar{left:150px;top:200px;width:1300px;height:58px;display:flex;align-items:center;justify-content:center;text-align:center;
+  font-size:28px;line-height:1.1;text-shadow:0 3px 0 #000;padding:0 20px;font-family:"Helvetica Neue",Arial,sans-serif;font-weight:900}
+.qbar.hide{visibility:hidden}
+
+/* ---------- main board ---------- */
+.board{left:150px;top:268px;width:1300px;height:582px;border-radius:30px;padding:20px}
+.bin{width:100%;height:100%;background:#03113a;border-radius:18px;padding:14px;display:grid;grid-template-columns:1fr 1fr;
+  grid-template-rows:repeat(4,1fr);grid-auto-flow:column;gap:13px 16px;box-shadow:inset 0 0 30px #000}
+.slot{perspective:1400px}
+.card{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .65s cubic-bezier(.3,1.4,.5,1)}
+.slot.open .card{transform:rotateX(-180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:9px;display:flex;align-items:center;
+  border:3px solid #8fb8ff;overflow:hidden}
+.front{justify-content:center;background:linear-gradient(180deg,#3d7ef5 0%,#1a4fc2 45%,#0b2c7c 100%);box-shadow:inset 0 2px 0 rgba(255,255,255,.4)}
+.slot.empty .front{background:linear-gradient(#0c275f,#061840);border-color:#21407e;box-shadow:none}
+.num{width:132px;height:84px;border-radius:50%;background:radial-gradient(ellipse at 50% 30%,#2a62d8,#0a2a78 70%);border:4px solid #fff;
+  display:flex;align-items:center;justify-content:center;font-size:52px;text-shadow:0 3px 0 #000;box-shadow:0 0 14px rgba(0,0,0,.6)}
+.back{transform:rotateX(180deg);justify-content:space-between;background:linear-gradient(180deg,#5aa0ff 0%,#2363da 40%,#0f3d9e 100%)}
+.ans{flex:1;padding-left:24px;text-transform:uppercase;text-shadow:0 3px 0 #04194d,0 0 10px rgba(0,0,0,.4);white-space:nowrap;overflow:hidden;letter-spacing:.5px}
+.pts{width:118px;height:100%;flex:none;display:flex;align-items:center;justify-content:center;font-size:54px;
+  background:linear-gradient(180deg,#2c66d8,#0a2d80);border-left:3px solid #8fb8ff;text-shadow:0 3px 0 #000}
+.foot{left:150px;top:860px;width:1300px;height:34px;display:flex;align-items:center;justify-content:space-between;font-size:18px;letter-spacing:2px;color:#cfe0ff}
+.ministrikes{display:flex;gap:8px}
+.ministrikes span{width:30px;height:30px;border:2px solid #6a86c9;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#2a3e70;font-size:22px}
+.ministrikes span.on{color:#ff2a2a;border-color:#fff;background:rgba(0,0,0,.4)}
+
+/* ---------- overlays ---------- */
+#fx{position:absolute;inset:0;pointer-events:none;z-index:40}
+.xs{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:50px;animation:xpop 1.5s ease forwards}
+.xs svg{width:270px;height:330px;filter:drop-shadow(0 10px 30px rgba(0,0,0,.8))}
+@keyframes xpop{0%{transform:scale(.2);opacity:0}12%{transform:scale(1.12);opacity:1}20%{transform:scale(1)}82%{opacity:1}100%{opacity:0}}
+.splash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(#0b3aa8,#020a26 75%);
+  animation:splash 2.6s ease forwards;z-index:45}
+.splash .big{font-size:150px;line-height:1;background:linear-gradient(#fff7c2,#ffcc33 45%,#c97f00);-webkit-background-clip:text;background-clip:text;color:transparent;
+  -webkit-text-stroke:3px #5a3200;filter:drop-shadow(0 8px 0 #000)}
+.splash .sub{margin-top:24px;font-size:58px;letter-spacing:6px;color:#fff;text-shadow:0 5px 0 #b3200b,0 0 30px #ff5a1a}
+@keyframes splash{0%{opacity:0;transform:scale(1.4)}12%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0;visibility:hidden}}
+.flash{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:90px;color:#fff;background:#c4160b;border:8px solid #fff;
+  padding:20px 50px;border-radius:24px;animation:xpop 1.6s ease forwards;white-space:nowrap;box-shadow:0 20px 60px #000}
+.confetti{position:absolute;top:-30px;width:16px;height:26px;opacity:.95;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(980px) rotate(900deg)}}
+
+/* ---------- logo / title ---------- */
+.logo{position:relative;width:1000px;height:540px;border-radius:50%;
+  background:radial-gradient(ellipse at 50% 35%,#ffb547 0%,#f06a12 35%,#b02e04 72%,#5e1400 100%);
+  border:18px solid #ffd54a;box-shadow:0 0 0 8px #6b3a00,0 0 0 14px #ffe991,0 0 90px rgba(255,170,40,.65),inset 0 0 60px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;align-items:center;justify-content:center}
+.logo .l1{font-size:78px;letter-spacing:4px;color:#fff;text-shadow:0 5px 0 #6b1800,0 0 20px rgba(0,0,0,.4)}
+.logo .l2{font-size:250px;line-height:.9;background:linear-gradient(#fffbe0,#ffd23a 40%,#e08a00 75%,#fff0a0);-webkit-background-clip:text;background-clip:text;
+  color:transparent;-webkit-text-stroke:5px #5a2400;filter:drop-shadow(0 10px 0 #3a1400)}
+.logo .leaf{position:absolute;font-size:80px;white-space:nowrap}
+.titlewrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px}
+.titlewrap .logo{animation:bob 4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-12px) scale(1.015)}}
+.blink{font-size:30px;letter-spacing:4px;animation:blink 1.4s steps(2) infinite;text-shadow:0 3px 0 #000}
+@keyframes blink{50%{opacity:.25}}
+.vs{font-size:44px;text-shadow:0 4px 0 #000;letter-spacing:2px}
+.vs b{color:#ffd54a}
+
+/* ---------- winner ---------- */
+.win{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;text-align:center}
+.win .t{font-size:120px;line-height:1;background:linear-gradient(#fff7c2,#ffcc33 45%,#c97f00);-webkit-background-clip:text;background-clip:text;color:transparent;
+  -webkit-text-stroke:3px #5a3200;filter:drop-shadow(0 8px 0 #000);text-transform:uppercase;max-width:1500px}
+.win .s{font-size:46px;text-shadow:0 4px 0 #000}
+.win .sc{display:flex;gap:60px}
+.win .sc .gold{position:relative}
+
+/* ---------- fast money ---------- */
+.fmtitle{left:0;top:30px;width:1600px;text-align:center;font-size:92px;line-height:1;background:linear-gradient(#fff7c2,#ffcc33 45%,#c97f00);
+  -webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:3px #5a3200;filter:drop-shadow(0 6px 0 #000)}
+.timer{right:80px;top:22px;width:170px;height:170px;border-radius:50%;padding:10px}
+.timer .in{width:100%;height:100%;border-radius:50%;background:radial-gradient(#0f3aa0,#04133d);display:flex;align-items:center;justify-content:center;
+  font-size:78px;text-shadow:0 4px 0 #000;box-shadow:inset 0 0 20px #000}
+.timer.low .in{color:#ff4a3a;animation:pulse .5s infinite}
+.fmwho{left:80px;top:60px;font-size:30px;letter-spacing:2px;color:#ffd54a;text-shadow:0 3px 0 #000}
+.fmboard{left:110px;top:200px;width:1380px;height:560px;border-radius:30px;padding:20px}
+.fmin{width:100%;height:100%;background:#03113a;border-radius:18px;padding:16px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(5,1fr);
+  grid-auto-flow:column;gap:12px 30px;box-shadow:inset 0 0 30px #000}
+.fmc{display:flex;border:3px solid #8fb8ff;border-radius:8px;overflow:hidden;background:linear-gradient(#245ad0,#0c2f86)}
+.fmc.sel{box-shadow:0 0 0 3px #ffd54a}
+.fmt{flex:1;display:flex;align-items:center;padding-left:20px;font-size:34px;text-transform:uppercase;text-shadow:0 3px 0 #04194d;white-space:nowrap;overflow:hidden}
+.fmt input{width:96%;font:inherit;font-size:32px;text-transform:uppercase;background:#fff;color:#0a2466;border:0;border-radius:6px;padding:4px 10px;outline:none}
+.fmp{width:110px;flex:none;display:flex;align-items:center;justify-content:center;font-size:48px;background:linear-gradient(#2c66d8,#0a2d80);border-left:3px solid #8fb8ff;text-shadow:0 3px 0 #000}
+.fmc.hid{background:linear-gradient(#0c275f,#061840);border-color:#21407e}
+.fmc.hid .fmt,.fmc.hid .fmp{visibility:hidden}
+.fmc.zero .fmp{color:#ff8a7a}
+.fmc.pop .fmp{animation:pulse .6s ease 1}
+.fmtotal{left:520px;top:775px;width:560px;height:100px;border-radius:20px;padding:9px;display:flex}
+.fmtotal .l{width:210px;display:flex;align-items:center;justify-content:center;color:#3b2300;font-size:40px;letter-spacing:3px}
+.fmtotal .v{flex:1;background:linear-gradient(#0a2466,#04133d);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:66px;text-shadow:0 4px 0 #000}
+.fmtotal.won .v{color:#ffd54a;animation:pulse .8s infinite}
+.fmgoal{left:1110px;top:800px;font-size:24px;color:#cfe0ff;letter-spacing:2px}
+
+/* ---------- setup ---------- */
+.setup{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.panel{width:1180px;background:rgba(3,17,58,.92);border:4px solid #ffd54a;border-radius:26px;padding:24px 50px;box-shadow:0 30px 90px #000;font-family:"Helvetica Neue",Arial,sans-serif}
+.panel h1{font-family:"Arial Black",Arial,sans-serif;font-size:58px;text-align:center;color:#ffd54a;text-shadow:0 4px 0 #000;margin-bottom:6px}
+.panel .tag{text-align:center;color:#cfe0ff;font-size:20px;margin-bottom:16px}
+.row{display:flex;gap:30px;margin-bottom:14px}
+.row label{flex:1;font-size:20px;font-weight:700;color:#ffd54a;display:block}
+.row input[type=text]{display:block;width:100%;margin-top:8px;font-size:30px;padding:12px 16px;border-radius:12px;border:3px solid #8fb8ff;background:#0a2466;color:#fff;font-weight:800}
+.pick{display:flex;gap:16px;margin-top:8px}
+.pick button{flex:1}
+.btns{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px}
+.btn{font:800 22px "Helvetica Neue",Arial,sans-serif;padding:16px 26px;border-radius:14px;border:3px solid #8fb8ff;background:#0a2466;color:#fff;cursor:pointer}
+.btn:hover{filter:brightness(1.25)}
+.btn.primary{background:linear-gradient(#ffe27a,#d39a18);color:#3b2300;border-color:#fff3b0;font-size:28px;flex:1.4}
+.btn.on{background:#d1260e;border-color:#ffd54a}
+.hint{margin-top:12px;font-size:16px;line-height:1.5;color:#cfe0ff}
+.hint b{color:#fff}
+
+/* ---------- help ---------- */
+#help{position:absolute;inset:60px 120px;z-index:60;background:rgba(2,10,38,.97);border:4px solid #ffd54a;border-radius:24px;padding:34px 46px;
+  font-family:"Helvetica Neue",Arial,sans-serif;display:none;columns:2;column-gap:50px;font-size:21px;line-height:1.55}
+#help.show{display:block}
+#help h2{column-span:all;font-family:"Arial Black",Arial;color:#ffd54a;font-size:34px;margin-bottom:10px}
+#help h3{color:#ffd54a;font-size:22px;margin-top:10px;break-after:avoid}
+#help kbd{display:inline-block;min-width:34px;text-align:center;background:#0a2466;border:2px solid #8fb8ff;border-radius:6px;padding:0 7px;font-weight:800;margin-right:6px}
+.toast{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(0,0,0,.8);border:2px solid #ffd54a;border-radius:14px;padding:10px 24px;
+  font-size:22px;z-index:70;animation:xpop 2s ease forwards;font-family:"Helvetica Neue",Arial}
+
+/* ---------- control glow + room code ---------- */
+.team.ctl{box-shadow:0 0 0 4px #5a3800,0 0 45px 14px rgba(255,213,74,.85)}
+.team .tag{position:absolute;left:50%;bottom:-24px;transform:translateX(-50%);background:#2fa84a;border:3px solid #fff;border-radius:16px;padding:2px 14px;font-size:16px;letter-spacing:2px;white-space:nowrap}
+.room{margin-top:12px;padding:14px 18px;border-radius:14px;background:#0a2466;border:2px dashed #ffd54a;font-size:20px;line-height:1.5;color:#cfe0ff}
+.room b.code{font-family:"Arial Black",Arial;font-size:38px;letter-spacing:8px;color:#ffd54a;vertical-align:middle;margin:0 6px}
+.room .url{color:#fff;font-weight:800;word-break:break-all}
+/* ---------- host remote ---------- */
+body.host-mode{background:#06123a;font-family:"Helvetica Neue",Arial,sans-serif;overflow:auto}
+#host{max-width:900px;margin:0 auto;padding:14px 14px 60px}
+#host h1{font-family:"Arial Black",Arial;color:#ffd54a;font-size:26px;margin:4px 0 10px}
+.hcard{background:#0b1f5c;border:2px solid #2d4f9e;border-radius:14px;padding:12px;margin-bottom:12px}
+.hcard h2{font-size:15px;letter-spacing:1px;color:#9fc3ff;margin-bottom:8px;text-transform:uppercase}
+.hq{font-size:21px;font-weight:800;margin-bottom:10px}
+.hans{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;background:#123177;margin-bottom:6px;cursor:pointer;font-size:19px;font-weight:700;border:2px solid transparent}
+.hans.done{opacity:.45;cursor:default}
+.hans .n{width:30px;height:30px;border-radius:50%;background:#fff;color:#0a2466;display:flex;align-items:center;justify-content:center;font-weight:900;flex:none}
+.hans .p{margin-left:auto;font-weight:900;color:#ffd54a}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.hb{font:800 17px "Helvetica Neue",Arial;padding:13px 8px;border-radius:10px;border:2px solid #8fb8ff;background:#123177;color:#fff;cursor:pointer}
+.hb.red{background:#a8180b;border-color:#ff8a7a}
+.hb.gold{background:linear-gradient(#ffe27a,#d39a18);color:#3b2300;border-color:#fff3b0;box-shadow:none}
+.hscore{display:flex;gap:10px;flex-wrap:wrap}
+.hscore>div{flex:1 1 150px;min-width:0;background:#123177;border-radius:10px;padding:8px;text-align:center}
+.hscore .v{font-size:34px;font-weight:900}
+.hscore .tn{font-weight:800;color:#ffd54a}
+.hscore .adj{display:flex;gap:5px;justify-content:center;margin-top:6px;flex-wrap:wrap}
+.hscore .adj button{padding:6px 9px;font-size:14px}
+.hfm{display:grid;grid-template-columns:1fr;gap:6px}
+.hfmrow{background:#123177;border-radius:10px;padding:8px}
+.hfmrow .q{font-weight:800;font-size:16px;margin-bottom:4px}
+.hfmrow .opts{font-size:13px;color:#b9cdf7;margin-bottom:6px}
+.hfmrow .line{display:flex;gap:6px;align-items:center;margin-top:4px}
+.hfmrow input{flex:1;font-size:17px;padding:8px;border-radius:8px;border:2px solid #8fb8ff;background:#fff;color:#0a2466;font-weight:700;min-width:0}
+.hfmrow .m{font-size:13px;color:#ffd54a;min-width:110px}
+.hfmrow button{padding:8px 10px;font-size:14px}
+.hsay{font-size:20px;line-height:1.4;background:#fff6d6;color:#3b2300;border-radius:10px;padding:12px 14px;font-weight:800;margin-bottom:8px}
+.hdo{font-size:16px;color:#d6e4ff;line-height:1.5}
+.hscript h2{color:#ffd54a}
+.hlink{font-size:14px;font-weight:800;padding:6px 10px;border-radius:8px;background:#5a1a10;margin-bottom:10px;display:inline-block}
+.hlink.ok{background:#14532d}
+.hrow{display:flex;gap:6px;align-items:center;margin-top:6px}
+.hrow input{flex:1;min-width:0;font-size:18px;padding:8px;border-radius:8px;border:2px solid #8fb8ff;background:#fff;color:#0a2466;font-weight:800}
+.hb.sel{background:#2fa84a;border-color:#fff}
+#roomIn{font-size:30px;letter-spacing:8px;text-transform:uppercase;text-align:center}
+.wait{padding:30px;text-align:center;font-size:20px;line-height:1.6}
+
+/* ---------- print cards ---------- */
+#print{display:none}
+@media print{
+  body{background:#fff!important;color:#000;overflow:visible!important}
+  #wrap,#host{display:none!important}
+  #print{display:block;font-family:Arial,sans-serif;color:#000;padding:10px}
+  #print h1{font-size:22px;margin:0 0 6px}
+  #print h2{font-size:17px;margin:16px 0 4px;border-bottom:2px solid #000;page-break-after:avoid}
+  #print .pq{font-weight:bold;font-size:14px;margin:10px 0 3px}
+  #print table{border-collapse:collapse;width:100%;font-size:13px;page-break-inside:avoid}
+  #print td{border:1px solid #999;padding:3px 6px}
+  #print td.p{width:40px;text-align:right;font-weight:bold}
+  #print .al{color:#555;font-size:11px}
+  #print .pb{page-break-before:always}
+}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage"><div id="rays"></div><div id="screen"></div><div id="fx"></div><div id="help"></div></div></div>
+<div id="host" style="display:none"></div>
+<div id="print"></div>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+/* =====================================================================
+   SURVEY DATA  —  A(text, points, ...aliases)
+   Aliases only matter for Fast Money auto-matching (host can override).
+   ===================================================================== */
+const GAMES=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob("=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".split('').reverse().join('')),c=>c.charCodeAt(0))));
+const MULT={1:'SINGLE',2:'DOUBLE',3:'TRIPLE'};
+
+/* ===================================================================== */
+const IS_HOST=location.hash.startsWith('#host');
+const $=s=>document.querySelector(s);
+let S=null;               // game state (board owns it; host mirrors it)
+const hist=[];            // undo stack
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function freshFM(){return {player:0,time:20,running:false,hide:false,sel:{p:0,r:0},won:false,
+  cells:[0,1].map(()=>[0,1,2,3,4].map(()=>({text:'',m:-1,shown:false})))}}
+function freshGame(names,g){return {screen:'title',teams:[{name:names[0],score:0},{name:names[1],score:0}],g,r:0,rev:[],strikes:0,bank:0,awarded:false,showQ:true,fm:freshFM()}}
+function roundsOf(st){const G=GAMES[st.g];return [...G.rounds,{...G.sudden,sudden:true}]}
+function cur(){return roundsOf(S)[S.r]}
+function fmQ(r){return GAMES[S.g].fm[r]}
+function cellPts(p,r,st=S){const c=st.fm.cells[p][r];if(!c.shown)return null;return c.m>=0?GAMES[st.g].fm[r].a[c.m].p:0}
+function fmTotal(st=S){let t=0;for(let p=0;p<2;p++)for(let r=0;r<5;r++){const v=cellPts(p,r,st);if(v)t+=v}return t}
+
+/* ---------- fuzzy answer matching for Fast Money ---------- */
+function norm(s){return String(s).toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9 ]/g,'').replace(/\b(the|a|an|my|your|his|her)\b/g,' ').replace(/\s+/g,'').replace(/(es|s)$/,'')}
+function matchAnswer(text,q){
+  const t=norm(text); if(!t) return -1;
+  for(let i=0;i<q.a.length;i++){
+    for(const key of [q.a[i].t,...q.a[i].al]){
+      const k=norm(key); if(!k) continue;
+      if(t===k) return i;
+      if(k.length>=3 && t.includes(k)) return i;
+      if(t.length>=4 && k.includes(t) && t.length>=0.6*k.length) return i;
+    }
+  }
+  return -1;
+}
+
+/* =====================================================================
+   SOUND (all generated — no files needed)
+   ===================================================================== */
+let AC=null,MASTER=null,muted=false;
+function ac(){if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)();const c=AC.createDynamicsCompressor();MASTER=AC.createGain();MASTER.gain.value=.9;MASTER.connect(c).connect(AC.destination)}
+  if(AC.state==='suspended')AC.resume();return AC}
+function tone(type,f,t0,dur,vol,opt={}){const a=ac(),o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(f,t0);
+  if(opt.to)o.frequency.exponentialRampToValueAtTime(opt.to,t0+dur);
+  let node=o; if(opt.lp){const f2=a.createBiquadFilter();f2.type='lowpass';f2.frequency.value=opt.lp;o.connect(f2);node=f2}
+  g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(vol,t0+(opt.att||.008));
+  if(opt.sus){g.gain.setValueAtTime(vol,t0+dur-.06);g.gain.exponentialRampToValueAtTime(.0001,t0+dur)}else g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
+  node.connect(g).connect(MASTER);o.start(t0);o.stop(t0+dur+.05)}
+function noiseBuf(sec,fill){const a=ac(),n=Math.floor(a.sampleRate*sec),b=a.createBuffer(1,n,a.sampleRate),d=b.getChannelData(0);fill(d,a.sampleRate);return b}
+const SND={
+  ding(){const t=ac().currentTime;tone('sine',1567,t,1.6,.45);tone('sine',3135,t,.9,.12);tone('triangle',784,t,1.2,.22);tone('sine',2350,t+.005,.5,.08)},
+  buzz(){const t=ac().currentTime;tone('sawtooth',138,t,.95,.38,{sus:1,lp:1400});tone('square',145,t,.95,.22,{sus:1,lp:1100});tone('sawtooth',69,t,.95,.25,{sus:1,lp:600})},
+  dup(){const t=ac().currentTime;[0,.32].forEach(d=>{tone('sawtooth',138,t+d,.24,.35,{sus:1,lp:1400});tone('square',145,t+d,.24,.2,{sus:1,lp:1100})})},
+  tick(){const t=ac().currentTime;tone('square',1100,t,.06,.15)},
+  theme(){const t=ac().currentTime,N=[[523,0,.14],[659,.14,.14],[784,.28,.14],[1047,.42,.32],[784,.78,.14],[1047,.92,.7]];
+    N.forEach(([f,d,l])=>{tone('sawtooth',f,t+d,l,.16,{lp:2600,sus:1});tone('square',f/2,t+d,l,.07,{lp:1200,sus:1});tone('triangle',f*2,t+d,l,.05,{sus:1})});
+    tone('sine',130,t,1.6,.2)},
+  whoosh(){const a=ac(),t=a.currentTime,s=a.createBufferSource();s.buffer=noiseBuf(.6,d=>{for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1});
+    const f=a.createBiquadFilter();f.type='bandpass';f.Q.value=2;f.frequency.setValueAtTime(400,t);f.frequency.exponentialRampToValueAtTime(5000,t+.5);
+    const g=a.createGain();g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.35,t+.15);g.gain.exponentialRampToValueAtTime(.0001,t+.6);s.connect(f).connect(g).connect(MASTER);s.start(t)},
+  applause(sec=3.5){const a=ac(),t=a.currentTime,s=a.createBufferSource();
+    s.buffer=noiseBuf(sec,(d,sr)=>{const claps=Math.floor(sec*260);for(let c=0;c<claps;c++){const st=Math.floor(Math.random()*(d.length-sr*.02)),len=Math.floor(sr*(.006+Math.random()*.012)),amp=.3+Math.random()*.7;
+      for(let i=0;i<len;i++)d[st+i]+=(Math.random()*2-1)*amp*Math.exp(-i/(len/3))}
+      for(let i=0;i<d.length;i++){const x=i/d.length;d[i]*=Math.min(1,x*8)*Math.min(1,(1-x)*2.5)*.5}});
+    const f=a.createBiquadFilter();f.type='bandpass';f.frequency.value=2200;f.Q.value=.6;const g=a.createGain();g.gain.value=.9;s.connect(f).connect(g).connect(MASTER);s.start(t)},
+  win(){SND.theme();setTimeout(()=>SND.applause(4.5),300)},
+};
+function play(n,...a){if(muted||IS_HOST)return;try{SND[n](...a)}catch(e){console.warn(e)}}
+
+/* =====================================================================
+   SYNC between the TV board and the optional Host Remote window
+   ===================================================================== */
+const ME=Math.random().toString(36).slice(2);const seen=new Set();let bc=null;
+try{bc=new BroadcastChannel('friendsgiving-feud')}catch(e){}
+let peer=null,conns=[],hconn=null,ROOM=null,linkState='',dialTimer=null,idTries=0;
+function send(msg){msg._f=ME;msg._i=ME+Math.random();if(bc)try{bc.postMessage(msg)}catch(e){}
+  try{localStorage.setItem('ffeud_msg',JSON.stringify(msg))}catch(e){}
+  if(IS_HOST){if(hconn&&hconn.open)try{hconn.send(msg)}catch(e){}}
+  else conns.forEach(c=>{if(c.open)try{c.send(msg)}catch(e){}})}
+function onMsg(m){if(!m||m._f===ME||seen.has(m._i))return;seen.add(m._i);
+  if(IS_HOST){if(m.type==='state'){S=m.S;renderHost()}}
+  else{if(m.type==='cmd')dispatch(m.cmd,m.arg);else if(m.type==='hello')broadcast()}}
+if(bc)bc.onmessage=e=>onMsg(e.data);
+addEventListener('storage',e=>{if(e.key==='ffeud_msg'&&e.newValue)try{onMsg(JSON.parse(e.newValue))}catch(x){}});
+function broadcast(){if(!IS_HOST)send({type:'state',S})}
+
+/* ---------- phone remote over the internet (PeerJS, free public broker) ---------- */
+const CODE_CH='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function newCode(){let c='';for(let i=0;i<4;i++)c+=CODE_CH[Math.floor(Math.random()*CODE_CH.length)];return c}
+const BASE=location.href.split('#')[0];
+function startBoardPeer(){
+  if(!window.Peer){linkState='nopeer';updateRoomUI();return}
+  ROOM=localStorage.getItem('ffeud_room')||newCode();localStorage.setItem('ffeud_room',ROOM);
+  peer=new Peer('ffeud-'+ROOM.toLowerCase());linkState='starting';updateRoomUI();
+  peer.on('open',()=>{linkState='ready';idTries=0;updateRoomUI()});
+  peer.on('connection',c=>{conns.push(c);c.on('data',onMsg);
+    c.on('open',()=>{c.send({type:'state',S,_f:ME,_i:ME+Math.random()});updateRoomUI();toast('📱 Host remote connected')});
+    c.on('close',()=>{conns=conns.filter(x=>x!==c);updateRoomUI()})});
+  peer.on('disconnected',()=>{setTimeout(()=>{try{if(peer&&!peer.destroyed)peer.reconnect()}catch(e){}},1500)});
+  peer.on('error',e=>{
+    if(e.type==='unavailable-id'){peer.destroy();peer=null;if(++idTries>6)localStorage.removeItem('ffeud_room');setTimeout(startBoardPeer,4000);linkState='starting'}
+    else if(e.type==='network'||e.type==='server-error'||e.type==='socket-error'){linkState='offline'}
+    updateRoomUI()});
+}
+function roomHTML(){
+  const n=conns.filter(c=>c.open).length;
+  if(linkState==='nopeer'||linkState==='offline')return `📱 Phone remote needs internet — not reachable right now. Keyboard control still works.`;
+  if(!ROOM||linkState==='starting')return `📱 Setting up your phone remote…`;
+  return `📱 <b>Phone remote:</b> on your phone open <span class="url">${esc(BASE)}#host</span> and enter room code <b class="code">${ROOM}</b>
+    ${n?`<span style="color:#7dff9a;font-weight:800">● ${n} remote connected</span>`:''}`;
+}
+function updateRoomUI(){const el=$('#roomInfo');if(el)el.innerHTML=roomHTML()}
+function connectHost(code){
+  code=(code||'').trim().toUpperCase();if(code.length<4)return;ROOM=code;localStorage.setItem('ffeud_hostroom',code);
+  if(!window.Peer){linkState='nopeer';renderHost();return}
+  if(!peer){peer=new Peer();
+    peer.on('open',dial);
+    peer.on('disconnected',()=>{setTimeout(()=>{try{peer.reconnect()}catch(e){}},1500)});
+    peer.on('error',e=>{linkState=e.type==='peer-unavailable'?'notfound':'error';renderHost();redial(3000)});
+  } else dial();
+}
+function redial(ms){clearTimeout(dialTimer);dialTimer=setTimeout(dial,ms)}
+function dial(){
+  if(!peer||!peer.open||!ROOM)return;if(hconn){try{hconn.close()}catch(e){}}
+  linkState='connecting';renderHost();
+  const c=peer.connect('ffeud-'+ROOM.toLowerCase(),{reliable:true});hconn=c;
+  c.on('open',()=>{if(hconn!==c)return;linkState='connected';send({type:'hello'});renderHost()});
+  c.on('data',onMsg);
+  c.on('close',()=>{if(hconn!==c)return;linkState='lost';renderHost();redial(2000)});
+}
+
+/* =====================================================================
+   GAME LOGIC — every action goes through dispatch()
+   ===================================================================== */
+const NO_UNDO=new Set(['undo','sound','tick','fmTimer']);
+function dispatch(cmd,arg){
+  if(IS_HOST){send({type:'cmd',cmd,arg});return}
+  if(!S && cmd!=='start' && cmd!=='resume') return;
+  if(S && !NO_UNDO.has(cmd)){hist.push(JSON.stringify(S));if(hist.length>300)hist.shift()}
+  const fx={};
+  switch(cmd){
+    case 'start': S=freshGame(arg.names,arg.g);hist.length=0;fx.theme=1;break;
+    case 'resume': S=arg;S.fm.running=false;break;
+    case 'setup': stopTicker();save();S=null;render({});return;
+    case 'title': S.screen='title';fx.theme=1;break;
+    case 'round': loadRound(arg);fx.splash=1;break;
+    case 'next': if(S.r<roundsOf(S).length-1){loadRound(S.r+1);fx.splash=1}else{S.screen='winner';fx.win=S.teams[0].score!==S.teams[1].score}break;
+    case 'prev': if(S.r>0){loadRound(S.r-1);fx.splash=1}break;
+    case 'toggleQ': S.showQ=!S.showQ;break;
+    case 'reveal':{const R=cur();const i=arg;if(i<0||i>=R.a.length||S.rev[i])break;S.rev[i]=S.awarded?2:1;
+      if(!S.awarded)S.bank+=R.a[i].p*R.m;fx.flip=[i];fx.snd='ding';break}
+    case 'revealAll':{const R=cur();const list=[];R.a.forEach((_,i)=>{if(!S.rev[i]){S.rev[i]=2;list.push(i)}});fx.flip=list;fx.stagger=1;break}
+    case 'strike': S.strikes=Math.min(3,S.strikes+1);fx.x=S.strikes;fx.snd='buzz';break;
+    case 'faceoffX': fx.x=1;fx.snd='buzz';break;
+    case 'clearStrikes': S.strikes=0;break;
+    case 'award': if(S.awarded||S.bank<=0)break;S.teams[arg].score+=S.bank;S.awarded=true;S.awardedTo=arg;fx.pulse=arg;fx.snd='award';break;
+    case 'score': S.teams[arg.t].score=Math.max(0,S.teams[arg.t].score+arg.d);fx.pulse=arg.t;break;
+    case 'rename': S.teams[arg.t].name=String(arg.name).slice(0,24)||S.teams[arg.t].name;break;
+    case 'setScore': S.teams[arg.t].score=Math.max(0,Math.round(+arg.v||0));fx.pulse=arg.t;break;
+    case 'control': S.control=arg;if(arg!=null)fx.pulse=arg;break;
+    case 'winner': S.screen='winner';fx.win=S.teams[0].score!==S.teams[1].score;break;
+    case 'backToRound': S.screen='round';break;
+    case 'fm': S.screen='fm';fx.splashFM=1;break;
+    case 'fmTimer': if(S.fm.running){S.fm.running=false}else{if(S.fm.time<=0)S.fm.time=S.fm.player?25:20;S.fm.running=true}break;
+    case 'fmResetTimer': S.fm.running=false;S.fm.time=S.fm.player?25:20;break;
+    case 'fmPlayer': {const p=arg!=null?arg:(S.fm.player?0:1);S.fm.player=p;S.fm.running=false;S.fm.time=p?25:20;S.fm.hide=p===1;S.fm.sel={p,r:firstOpen(p)};fx.snd='whoosh';break}
+    case 'fmHide': S.fm.hide=!S.fm.hide;fx.snd='whoosh';break;
+    case 'fmSel': S.fm.sel=arg;break;
+    case 'fmText':{const {p,r,text}=arg;const c=S.fm.cells[p][r];const m=matchAnswer(text,fmQ(r));
+      if(p===1&&text.trim()){const o=S.fm.cells[0][r];if((m>=0&&o.m===m)||(o.text&&norm(o.text)===norm(text))){hist.pop();fx.flash='DUPLICATE!';fx.snd='dup';fx.reEdit={p,r};break}}
+      c.text=text.trim();c.m=c.text?m:-1;c.shown=false;S.fm.sel={p,r};break}
+    case 'fmReveal':{const {p,r}=arg;const c=S.fm.cells[p][r];if(!c.text||c.shown)break;c.shown=true;const v=cellPts(p,r);
+      fx.pop={p,r};fx.snd=v>0?'ding':'buzz';if(r<4&&S.fm.sel.p===p&&S.fm.sel.r===r)S.fm.sel={p,r:r+1};checkFMWin(fx);break}
+    case 'fmAdj':{const {p,r,d}=arg;const c=S.fm.cells[p][r];if(!c.text)break;const n=fmQ(r).a.length;c.m=((c.m+1+d)%(n+1)+(n+1))%(n+1)-1;
+      if(c.shown){fx.pop={p,r};fx.snd=c.m>=0?'ding':'buzz'}checkFMWin(fx);break}
+    case 'fmSet':{const {p,r,m}=arg;const c=S.fm.cells[p][r];if(!c.text)break;c.m=m;if(c.shown){fx.pop={p,r};fx.snd=m>=0?'ding':'buzz'}checkFMWin(fx);break}
+    case 'fmClear':{const {p,r}=arg;S.fm.cells[p][r]={text:'',m:-1,shown:false};checkFMWin(fx);break}
+    case 'fmResetAll': S.fm=freshFM();break;
+    case 'sound': play(arg);return;
+    case 'undo': if(!hist.length){toast('Nothing to undo');return}{const was=S.fm.running,time=S.fm.time;S=JSON.parse(hist.pop());S.fm.running=false;if(was)S.fm.time=time;toast('Undone');break}
+    case 'newGame': S=freshGame([S.teams[0].name,S.teams[1].name],arg);fx.theme=1;break;
+    default: return;
+  }
+  if(fx.noState){if(fx.snd)play(fx.snd);renderFx(fx);return}
+  save();render(fx);broadcast();
+  if(fx.reEdit)beginEdit(fx.reEdit.p,fx.reEdit.r);
+}
+function loadRound(i){S.screen='round';S.r=i;S.rev=[];S.strikes=0;S.bank=0;S.awarded=false;S.awardedTo=null;S.showQ=true;S.control=null}
+function firstOpen(p){for(let r=0;r<5;r++)if(!S.fm.cells[p][r].shown)return r;return 4}
+function checkFMWin(fx){const t=fmTotal();if(t>=200&&!S.fm.won){S.fm.won=true;fx.fmwin=1}else if(t<200)S.fm.won=false}
+function save(){if(IS_HOST)return;try{if(S)localStorage.setItem('ffeud_state',JSON.stringify(S));else localStorage.removeItem('ffeud_state')}catch(e){}}
+
+/* ---------- Fast Money timer ---------- */
+let ticker=null;
+function syncTicker(){if(S&&S.screen==='fm'&&S.fm.running){if(!ticker)ticker=setInterval(tickOnce,1000)}else stopTicker()}
+function stopTicker(){if(ticker){clearInterval(ticker);ticker=null}}
+function tickOnce(){if(!S||!S.fm.running){stopTicker();return}S.fm.time=Math.max(0,S.fm.time-1);
+  if(S.fm.time<=5&&S.fm.time>0)play('tick');
+  if(S.fm.time===0){S.fm.running=false;stopTicker();play('buzz');}
+  const el=$('#timer');if(el){el.querySelector('.in').textContent=S.fm.time;el.classList.toggle('low',S.fm.time<=5)}
+  save();broadcast()}
+
+/* =====================================================================
+   RENDER — TV BOARD
+   ===================================================================== */
+const XSVG='<svg viewBox="0 0 100 120"><rect x="4" y="4" width="92" height="112" rx="10" fill="rgba(0,0,0,.45)" stroke="#fff" stroke-width="5"/><path d="M24 26 L76 94 M76 26 L24 94" stroke="#fff" stroke-width="27" stroke-linecap="round"/><path d="M24 26 L76 94 M76 26 L24 94" stroke="#e3161b" stroke-width="17" stroke-linecap="round"/></svg>';
+function fitText(t,width,max){return Math.round(Math.min(max,width/(Math.max(t.length,1)*.74)))}
+function teamBox(i,left){const t=S.teams[i];const ctl=S.screen==='round'&&S.control===i&&!S.awarded;return `<div class="abs gold team ${ctl?'ctl':''}" id="team${i}" style="left:${left}px">${ctl?'<div class="tag">PLAYING</div>':''}<div class="nm" style="font-size:${fitText(t.name,280,25)}px">${esc(t.name)}</div><div class="sc">${t.score}</div></div>`}
+function logoHTML(scale=1){return `<div class="logo" style="transform:scale(${scale})"><span class="leaf" style="left:52px;top:210px">🦃</span><span class="leaf" style="right:52px;top:210px">🎄</span>
+  <span class="leaf" style="left:50%;transform:translateX(-50%);bottom:18px;font-size:58px">🍂🥧🍂</span><div class="l1">FRIENDSGIVING</div><div class="l2">FEUD</div></div>`}
+
+function render(fx={}){
+  if(IS_HOST)return renderHost();
+  const sc=$('#screen');
+  if(!S||S.screen==='setup'){sc.innerHTML=setupHTML();bindSetup();syncTicker();return}
+  if(S.screen==='title'){sc.innerHTML=`<div class="titlewrap">${logoHTML(.92)}<div class="vs"><b>${esc(S.teams[0].name)}</b> &nbsp;vs&nbsp; <b>${esc(S.teams[1].name)}</b></div><div class="blink">PRESS SPACE TO PLAY</div></div>`}
+  else if(S.screen==='round'){sc.innerHTML=roundHTML()}
+  else if(S.screen==='winner'){sc.innerHTML=winnerHTML()}
+  else if(S.screen==='fm'){sc.innerHTML=fmHTML()}
+  syncTicker();renderFx(fx);
+}
+function roundHTML(){
+  const R=cur(),label=R.sudden?'SUDDEN DEATH':`ROUND ${S.r+1}`;
+  let slots='';
+  for(let i=0;i<8;i++){
+    if(i>=R.a.length){slots+=`<div class="slot empty"><div class="card"><div class="face front"></div></div></div>`;continue}
+    const a=R.a[i],fs=fitText(a.t,440,40);
+    slots+=`<div class="slot ${S.rev[i]?'open':''}" id="slot${i}"><div class="card"><div class="face front"><div class="num">${i+1}</div></div>
+      <div class="face back"><div class="ans" style="font-size:${fs}px">${esc(a.t)}</div><div class="pts">${a.p}</div></div></div></div>`;
+  }
+  const qfs=R.q.length>75?23:R.q.length>58?26:30;
+  return `${teamBox(0,40)}${teamBox(1,1250)}
+  <div class="abs gold bank"><div class="nm">${S.awarded?'BANKED':'SCORE'}</div><div class="sc">${S.bank}</div><div class="mult">${R.sudden?'SUDDEN DEATH':MULT[R.m]+' POINTS'}</div></div>
+  <div class="abs qbar ${S.showQ?'':'hide'}" style="font-size:${qfs}px">${esc(R.q)}</div>
+  <div class="abs gold board"><div class="bin">${slots}</div></div>
+  <div class="abs foot"><span>${label} &bull; ${R.sudden?'TOP ANSWER WINS':MULT[R.m]+' POINTS'}</span>
+   <span class="ministrikes">${[1,2,3].map(n=>`<span class="${S.strikes>=n?'on':''}">✕</span>`).join('')}</span>
+   <span>FIRST TO 300 PLAYS FAST MONEY</span></div>`;
+}
+function winnerHTML(){
+  const [a,b]=S.teams,tie=a.score===b.score,w=a.score>b.score?a:b;
+  return `<div class="win">${tie?`<div class="t">It's a tie!</div><div class="s">Time for SUDDEN DEATH</div>`:
+    `<div class="s">🦃 &nbsp;AND THE WINNER IS&nbsp; 🦃</div><div class="t">${esc(w.name)}</div><div class="s">They're playing for <span style="color:#ffd54a">FAST MONEY!</span></div>`}
+    <div class="sc">${teamBox(0,0).replace('abs ','').replace('style="left:0px"','style="position:relative;top:0"')}${teamBox(1,0).replace('abs ','').replace('style="left:0px"','style="position:relative;top:0"')}</div></div>`;
+}
+function fmHTML(){
+  const F=S.fm;let cells='';
+  for(let p=0;p<2;p++)for(let r=0;r<5;r++){
+    const c=F.cells[p][r],v=cellPts(p,r),hid=(p===0&&F.hide);
+    const cls=['fmc',hid?'hid':'',v===0?'zero':'',(F.sel.p===p&&F.sel.r===r)?'sel':''].join(' ');
+    const fs=fitText(c.text||'',470,34);
+    cells+=`<div class="${cls}" id="fm${p}${r}" data-p="${p}" data-r="${r}"><div class="fmt" style="font-size:${fs}px">${esc(c.text)}</div><div class="fmp">${v==null?'':v}</div></div>`;
+  }
+  const tot=fmTotal();
+  return `<div class="abs fmtitle">FAST MONEY</div>
+   <div class="abs fmwho">${F.player?'PLAYER 2 • 25 SEC':'PLAYER 1 • 20 SEC'}</div>
+   <div class="abs gold timer ${F.time<=5?'low':''}" id="timer"><div class="in">${F.time}</div></div>
+   <div class="abs gold fmboard"><div class="fmin">${cells}</div></div>
+   <div class="abs gold fmtotal ${F.won?'won':''}"><div class="l">TOTAL</div><div class="v">${tot}</div></div>
+   <div class="abs fmgoal">${F.won?'🎉 $$$ YOU WIN! 🎉':'GOAL: 200 POINTS'}</div>`;
+}
+function renderFx(fx){
+  const box=$('#fx');
+  if(fx.flip&&fx.flip.length){
+    fx.flip.forEach((i,k)=>{const el=$('#slot'+i);if(!el)return;el.classList.remove('open');
+      setTimeout(()=>{el.classList.add('open');if(fx.stagger)play('whoosh');},fx.stagger?120+k*380:30)});
+  }
+  if(fx.snd==='award'){play('ding');setTimeout(()=>play('ding'),180);setTimeout(()=>play('applause',2.5),250)}
+  else if(fx.snd)play(fx.snd);
+  if(fx.pulse!=null){const t=$('#team'+fx.pulse);if(t){t.classList.remove('pulse');void t.offsetWidth;t.classList.add('pulse')}}
+  if(fx.x){const d=document.createElement('div');d.className='xs';d.innerHTML=XSVG.repeat(fx.x);box.appendChild(d);setTimeout(()=>d.remove(),1600)}
+  if(fx.flash){const d=document.createElement('div');d.className='flash';d.textContent=fx.flash;box.appendChild(d);setTimeout(()=>d.remove(),1700)}
+  if(fx.splash){const R=cur();const d=document.createElement('div');d.className='splash';
+    d.innerHTML=R.sudden?`<div class="big">SUDDEN DEATH</div><div class="sub">TRIPLE POINTS • TOP ANSWER WINS</div>`:`<div class="big">ROUND ${S.r+1}</div><div class="sub">${MULT[R.m]} POINTS</div>`;
+    box.appendChild(d);play('theme');setTimeout(()=>d.remove(),2700)}
+  if(fx.splashFM){const d=document.createElement('div');d.className='splash';d.innerHTML=`<div class="big">FAST MONEY</div><div class="sub">5 QUESTIONS • 200 POINTS TO WIN</div>`;
+    box.appendChild(d);play('theme');setTimeout(()=>d.remove(),2700)}
+  if(fx.theme)play('theme');
+  if(fx.pop){const el=$('#fm'+fx.pop.p+fx.pop.r);if(el){el.classList.add('pop')}}
+  if(fx.win||fx.fmwin){confetti();play('win')}
+}
+function confetti(){const box=$('#fx'),cols=['#ffd54a','#ff5a1a','#e3161b','#2fbf4a','#ffffff','#5aa0ff','#b45309'];
+  for(let i=0;i<170;i++){const c=document.createElement('div');c.className='confetti';c.style.left=Math.random()*1600+'px';c.style.background=cols[i%cols.length];
+    c.style.animationDuration=(2.6+Math.random()*2.8)+'s';c.style.animationDelay=(Math.random()*1.4)+'s';c.style.borderRadius=Math.random()<.4?'50%':'2px';box.appendChild(c);setTimeout(()=>c.remove(),7000)}}
+function toast(msg){if(IS_HOST)return;const d=document.createElement('div');d.className='toast';d.textContent=msg;$('#fx').appendChild(d);setTimeout(()=>d.remove(),2100)}
+
+/* ---------- Fast Money typing on the board ---------- */
+function beginEdit(p,r){
+  const cell=$('#fm'+p+r);if(!cell)return;const t=cell.querySelector('.fmt');const old=S.fm.cells[p][r].text;
+  if(S.fm.sel.p!==p||S.fm.sel.r!==r){S.fm.sel={p,r};document.querySelectorAll('.fmc.sel').forEach(e=>e.classList.remove('sel'));cell.classList.add('sel')}
+  t.innerHTML=`<input id="fmedit" autocomplete="off" spellcheck="false" placeholder="type answer, Enter">`;const inp=t.querySelector('input');inp.value=old;inp.focus();
+  inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();dispatch('fmText',{p,r,text:inp.value})}else if(e.key==='Escape'){render({})}});
+}
+
+/* ---------- Setup screen ---------- */
+function setupHTML(){
+  let saved=null;try{saved=JSON.parse(localStorage.getItem('ffeud_state')||'null')}catch(e){}
+  return `<div class="setup"><div class="panel">
+   <h1>🦃 FRIENDSGIVING FEUD 🎄</h1><div class="tag">Survey-style holiday Feud • 2 full games • Fast Money • built for the TV</div>
+   <div class="row"><label>Team 1 (left)<input type="text" id="t1" value="${esc(saved?saved.teams[0].name:'The Gobblers')}" maxlength="22"></label>
+     <label>Team 2 (right)<input type="text" id="t2" value="${esc(saved?saved.teams[1].name:'The Pie Hards')}" maxlength="22"></label></div>
+   <div class="row"><label>Question set<div class="pick"><button class="btn on" data-g="0">Game 1</button><button class="btn" data-g="1">Game 2 (rematch)</button></div></label></div>
+   <div class="btns"><button class="btn primary" id="go">▶ START NEW GAME</button>${saved?`<button class="btn" id="resume">↻ Resume saved game</button>`:''}</div>
+   <div class="btns"><button class="btn" id="remote">📱 Open Host Remote</button><button class="btn" id="printBtn">🖨 Print Host Cards</button><button class="btn" id="snd">🔊 Test sound</button><button class="btn" id="fs">🖥 Fullscreen (F)</button><button class="btn" id="hk">⌨ Host keys (?)</button></div>
+   <div class="room" id="roomInfo">${roomHTML()}</div>
+   <div class="hint"><b>Setup:</b> plug in / mirror to the TV, press <b>F</b> for fullscreen, then Start. You run everything from the laptop keyboard — press <b>?</b> any time for the key list
+   (it shows on the TV, so peek quickly). Best way to host: use the <b>phone remote</b> above — you see every answer, a script of what to say, and you control the board and scores from your hand. The room code is only shown on this setup screen (press <b>Shift+Esc</b> to come back to it).</div>
+  </div></div>`;
+}
+let pickG=0;
+function bindSetup(){
+  document.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{pickG=+b.dataset.g;document.querySelectorAll('[data-g]').forEach(x=>x.classList.toggle('on',x===b))});
+  $('#go').onclick=()=>{ac();dispatch('start',{names:[$('#t1').value.trim()||'Team 1',$('#t2').value.trim()||'Team 2'],g:pickG})};
+  const r=$('#resume');if(r)r.onclick=()=>{ac();try{const s=JSON.parse(localStorage.getItem('ffeud_state'));s.teams[0].name=$('#t1').value.trim()||s.teams[0].name;s.teams[1].name=$('#t2').value.trim()||s.teams[1].name;dispatch('resume',s)}catch(e){}};
+  $('#remote').onclick=openRemote;$('#printBtn').onclick=printCards;$('#snd').onclick=()=>{ac();play('ding');setTimeout(()=>play('buzz'),900)};
+  $('#fs').onclick=toggleFS;$('#hk').onclick=toggleHelp;
+}
+function openRemote(){window.open(location.href.split('#')[0]+'#host','ffeud_host','width=760,height=980')}
+function toggleFS(){if(!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{});else document.exitFullscreen()}
+function toggleHelp(){$('#help').classList.toggle('show')}
+$('#help').innerHTML=`<h2>HOST KEYS — press ? to close</h2>
+<h3>Main rounds</h3>
+<div><kbd>1</kbd>–<kbd>8</kbd> reveal that answer (adds to the bank)</div>
+<div><kbd>X</kbd> strike (1 → 2 → 3 big X's)</div>
+<div><kbd>Z</kbd> single face-off X (doesn't count as a strike)</div>
+<div><kbd>←</kbd> / <kbd>→</kbd> award the bank to the left / right team</div>
+<div><kbd>R</kbd> reveal the rest of the board (no points)</div>
+<div><kbd>N</kbd> next round &nbsp; <kbd>B</kbd> back a round</div>
+<div><kbd>Q</kbd> hide / show the question</div>
+<div><kbd>C</kbd> clear strikes &nbsp; <kbd>W</kbd> winner screen</div>
+<div><kbd>G</kbd> go to Fast Money &nbsp; <kbd>T</kbd> title screen</div>
+<h3>Fast Money</h3>
+<div><kbd>Space</kbd> start / pause clock (20s, then 25s)</div>
+<div><kbd>Enter</kbd> on a box: type the answer → <kbd>Enter</kbd> shows it → <kbd>Enter</kbd> again = SURVEY SAYS</div>
+<div><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> pick a box (or click it) &nbsp; <kbd>E</kbd> retype</div>
+<div><kbd>[</kbd> / <kbd>]</kbd> change which survey answer it counts as (judge's call)</div>
+<div><kbd>P</kbd> switch to Player 2 (hides Player 1's answers)</div>
+<div><kbd>H</kbd> hide / show Player 1's answers &nbsp; <kbd>Del</kbd> clear box</div>
+<div><kbd>D</kbd> duplicate buzzer &nbsp; <kbd>X</kbd> buzzer &nbsp; <kbd>K</kbd> reset clock</div>
+<h3>Anytime</h3>
+<div><kbd>U</kbd> UNDO last action &nbsp; <kbd>F</kbd> fullscreen &nbsp; <kbd>M</kbd> mute</div>
+<div><kbd>A</kbd> applause &nbsp; <kbd>S</kbd> theme sting &nbsp; <kbd>Esc</kbd> back to setup (hold Shift)</div>`;
+
+/* ---------- Keyboard (TV board) ---------- */
+addEventListener('keydown',e=>{
+  if(IS_HOST)return;
+  const tag=(e.target.tagName||'');if(tag==='INPUT'||tag==='TEXTAREA')return;
+  const k=e.key.length===1?e.key.toLowerCase():e.key;
+  if(k==='?'||k==='/'){toggleHelp();e.preventDefault();return}
+  if(k==='f'){toggleFS();return}
+  if(!S||S.screen==='setup')return;
+  if(k==='Escape'&&e.shiftKey){dispatch('setup');return}
+  if(k==='Escape'&&$('#help').classList.contains('show')){toggleHelp();return}
+  if(k==='u'||(e.ctrlKey&&k==='z')){dispatch('undo');return}
+  if(k==='m'){muted=!muted;toast(muted?'Sound OFF':'Sound ON');return}
+  if(k==='a'){play('applause');return}
+  if(k==='s'){play('theme');return}
+  let handled=true;
+  if(S.screen==='title'){if(k===' '||k==='Enter')dispatch('round',S.r||0);else if(k==='g')dispatch('fm');else handled=false}
+  else if(S.screen==='round'){
+    if(/^[1-8]$/.test(k))dispatch('reveal',+k-1);
+    else if(k==='x')dispatch('strike');else if(k==='z')dispatch('faceoffX');else if(k==='c')dispatch('clearStrikes');
+    else if(k==='ArrowLeft')dispatch('award',0);else if(k==='ArrowRight')dispatch('award',1);
+    else if(k==='r')dispatch('revealAll');else if(k==='n')dispatch('next');else if(k==='b')dispatch('prev');
+    else if(k==='q')dispatch('toggleQ');else if(k==='w')dispatch('winner');else if(k==='g')dispatch('fm');else if(k==='t')dispatch('title');
+    else handled=false}
+  else if(S.screen==='winner'){if(k===' '||k==='Enter'||k==='g')dispatch('fm');else if(k==='b'||k==='Escape')dispatch('backToRound');else if(k==='n')dispatch('round',S.r);else handled=false}
+  else if(S.screen==='fm'){
+    const F=S.fm,{p,r}=F.sel,c=F.cells[p][r];
+    if(k===' ')dispatch('fmTimer');
+    else if(k==='Enter'){if(!c.text)beginEdit(p,r);else if(!c.shown)dispatch('fmReveal',{p,r});else if(r<4)dispatch('fmSel',{p,r:r+1})}
+    else if(k==='e')beginEdit(p,r);
+    else if(k==='ArrowUp')dispatch('fmSel',{p,r:Math.max(0,r-1)});else if(k==='ArrowDown')dispatch('fmSel',{p,r:Math.min(4,r+1)});
+    else if(k==='ArrowLeft')dispatch('fmSel',{p:0,r});else if(k==='ArrowRight')dispatch('fmSel',{p:1,r});
+    else if(k==='[')dispatch('fmAdj',{p,r,d:-1});else if(k===']')dispatch('fmAdj',{p,r,d:1});
+    else if(k==='p'||k==='Tab')dispatch('fmPlayer');else if(k==='h')dispatch('fmHide');
+    else if(k==='d')dispatch('sound','dup');else if(k==='x')dispatch('sound','buzz');else if(k==='k')dispatch('fmResetTimer');
+    else if(k==='Delete'||k==='Backspace')dispatch('fmClear',{p,r});
+    else if(k==='b'||k==='Escape')dispatch('winner');
+    else handled=false}
+  if(handled)e.preventDefault();
+});
+document.addEventListener('click',e=>{if(IS_HOST||!S||S.screen!=='fm')return;const c=e.target.closest('.fmc');if(!c||e.target.tagName==='INPUT')return;
+  const p=+c.dataset.p,r=+c.dataset.r,cell=S.fm.cells[p][r];
+  if(S.fm.sel.p===p&&S.fm.sel.r===r){if(!cell.text)beginEdit(p,r);else if(!cell.shown)dispatch('fmReveal',{p,r})}else dispatch('fmSel',{p,r})});
+
+/* =====================================================================
+   HOST REMOTE (separate window/tab, never shown on the TV)
+   ===================================================================== */
+function q_(t){return `“${esc(t)}”`}
+function hostScript(){
+  const T=S.teams.map(t=>t.name);
+  if(S.screen==='title')return{h:'🎬 Open the show',say:`Welcome to FRIENDSGIVING FEUD! Give it up for our two families — ${T[0]}… and ${T[1]}! Let’s play the Feud!`,
+    do:'Tap <b>Start Round 1</b>. Call one player from each team up to the face-off table.'};
+  if(S.screen==='round'){
+    const R=cur(),n=R.a.length,c=S.control,o=c==null?null:1-c,left=R.a.filter((_,i)=>!S.rev[i]).length;
+    if(S.awarded){const w=S.awardedTo,hi=S.teams.findIndex(t=>t.score>=300);
+      return{h:'✅ Round over',say:`${T[w]} take the points! That puts you at ${S.teams[w].score}. Let’s see what else was up there…`,
+      do:`Tap <b>Reveal rest</b> to flip the remaining answers (no points), then <b>Next round ▶</b>.`+(hi>=0?`<br><b>${esc(T[hi])} has ${S.teams[hi].score} — first to 300! Tap 🏆 Winner, then 💰 Fast Money.</b>`:'')}}
+    if(R.sudden)return{h:'⚡ Sudden death',say:`It’s sudden death — triple points, and only the NUMBER ONE answer wins it. Hands on the table… ${R.q}`,
+      do:`First to slap answers. #1 is <b>${esc(R.a[0].t)}</b>. If they say it: tap 1, then bank to their team. If not, tap Face-off X and let the other player try. Then tap 🏆 Winner.`};
+    if(c==null)return{h:'🤜🤛 Face-off',say:`We surveyed 100 people. Top ${n} answers are on the board. Here’s the question: ${R.q}`,
+      do:`Two players, hands on the table — first to slap answers. If it’s up there, tap it; if not, tap <b>✕ Face-off X</b> and let the other player answer. Higher answer wins. Ask the winner: <b>“Play or pass?”</b> Then tap the team that will PLAY under <b>Who’s playing?</b>`};
+    if(S.strikes>=3)return{h:'🕵️ STEAL!',say:`That’s three strikes! ${T[o]} — huddle up. Give me ONE answer and you steal all ${S.bank} points.`,
+      do:`If their answer is on the board: tap it (“Show me ___!”), then <b>Bank to ${esc(T[o])}</b>.<br>If not: tap <b>✕ Face-off X</b> for the buzzer, then <b>Bank to ${esc(T[c])}</b>.`};
+    if(left===0)return{h:'🎉 Board cleared!',say:`They cleared the board! ${T[c]} take ${S.bank} points!`,do:`Tap <b>Bank to ${esc(T[c])}</b>.`};
+    const lines=['Good answer! Good answer!','Survey says…!','Show me…!','I like it, I like it!'];
+    return{h:`▶ ${T[c]} are playing`,say:S.strikes?`${S.strikes} strike${S.strikes>1?'s':''}… careful now. Next player — ${R.q}`:`${lines[(S.rev.filter(Boolean).length)%lines.length]} Next player — ${R.q}`,
+      do:`Go down the line, one answer each. On the board → tap it. Not on the board → <b>✕ STRIKE</b>. ${left} answer${left>1?'s':''} left, ${S.bank} in the bank. 3 strikes = the other team steals.`};
+  }
+  if(S.screen==='winner'){const [a,b]=S.teams;if(a.score===b.score)return{h:'🤝 Tie',say:'We’re all tied up — that means SUDDEN DEATH!',do:'Tap <b>Sudden death</b>.'};
+    const w=a.score>b.score?a:b;return{h:'🏆 We have a winner',say:`Congratulations ${w.name}! You’re going to play FAST MONEY for the grand prize!`,
+    do:'Pick two players. Player 2 leaves the room (or wears headphones). Tap <b>💰 Go to Fast Money</b>.'}}
+  if(S.screen==='fm'){const F=S.fm,t=fmTotal();
+    if(F.won)return{h:'💰 WINNER!',say:`That’s ${t} points — YOU WIN FAST MONEY! Happy Friendsgiving everybody!`,do:'Take a bow, Steve. Undo is there if you need it.'};
+    if(F.player===0)return{h:'💰 Fast Money — Player 1',say:'Five questions, 20 seconds on the clock. Answer as fast as you can — if you get stuck, say “pass.” Ready? Start the clock!',
+      do:'Tap <b>▶ Start clock</b> and read the 5 questions fast. Write their answers in the P1 boxes as they talk (or after). Then, one at a time: <b>Show</b> → say “Survey says!” → <b>Survey says</b>. Then <b>Player 2</b> (it hides P1’s answers).'};
+    return{h:'💰 Fast Money — Player 2',say:`Player 1 got you ${t} points. You need ${Math.max(0,200-t)} more. 25 seconds — and if you repeat an answer you’ll hear this… (tap Duplicate) …and you give me another. Start the clock!`,
+      do:'Same as before in the P2 boxes. A repeat answer gives the duplicate buzzer automatically. When done, tap <b>Show P1 answers</b> for the big total.'};
+  }
+  return{h:'',say:'',do:''};
+}
+function linkHTML(){
+  if(!hconn&&S)return `<div class="hlink ok">● Same-browser mode</div>`;
+  const m={connecting:['Connecting to the TV…',0],connected:['● Connected to the TV — room '+ROOM,1],lost:['Connection lost — reconnecting…',0],
+    notfound:['Room '+ROOM+' not found — is the game open on the TV laptop? Retrying…',0],error:['Connection problem — retrying…',0],nopeer:['Can’t reach the internet relay. Use the laptop keyboard.',0]}[linkState];
+  return m?`<div class="hlink ${m[1]?'ok':''}">${m[0]}</div>`:'';
+}
+function renderHost(){
+  const h=$('#host');
+  const ae=document.activeElement,keep=ae&&ae.id&&ae.tagName==='INPUT'?{id:ae.id,v:ae.value,s:ae.selectionStart}:null;
+  if(!S){h.innerHTML=`<h1>🦃 Host Remote</h1>${linkHTML()}<div class="hcard"><h2>Connect to the TV</h2>
+     <div class="hdo">On the TV laptop, open the game. The setup screen shows a 4-letter <b>room code</b>. Enter it here:</div>
+     <div class="hrow"><input id="roomIn" maxlength="4" autocomplete="off" autocapitalize="characters" value="${esc(ROOM||localStorage.getItem('ffeud_hostroom')||'')}"><button class="hb gold" onclick="connectHost(document.getElementById('roomIn').value)">Connect</button></div>
+     <div class="hdo" style="margin-top:8px">Then click <b>Start</b> on the laptop. This page becomes your control panel with every answer and a script of what to say.</div></div>`;
+    restoreFocus(keep);return}
+  const B=(label,cmd,arg,cls='')=>`<button class="hb ${cls}" onclick='dispatch(${JSON.stringify(cmd)},${JSON.stringify(arg===undefined?null:arg)})'>${label}</button>`;
+  const sc=hostScript();
+  const script=sc.h?`<div class="hcard hscript"><h2>${sc.h}</h2><div class="hsay">🎤 ${q_(sc.say)}</div><div class="hdo">${sc.do}</div></div>`:'';
+  const scores=`<div class="hcard"><h2>Scores & team names</h2><div class="hscore">${S.teams.map((t,i)=>`<div>
+    <input id="nm${i}" value="${esc(t.name)}" onchange="dispatch('rename',{t:${i},name:this.value})" style="width:100%;font-weight:800;font-size:16px;padding:6px;border-radius:8px;border:2px solid #8fb8ff;text-align:center">
+    <div class="v">${t.score}</div>
+    <div class="hrow"><input id="sc${i}" type="number" inputmode="numeric" value="${t.score}" onkeydown="if(event.key==='Enter')dispatch('setScore',{t:${i},v:this.value})"><button class="hb" onclick="dispatch('setScore',{t:${i},v:document.getElementById('sc${i}').value})">Set</button></div>
+    <div class="adj">${[-10,-5,-1,1,5,10].map(d=>`<button class="hb" onclick='dispatch("score",{t:${i},d:${d}})'>${d>0?'+':''}${d}</button>`).join('')}</div></div>`).join('')}</div></div>`;
+  let body='';
+  if(S.screen==='round'){
+    const R=cur();
+    body=`<div class="hcard"><h2>${R.sudden?'Sudden death':'Round '+(S.r+1)} • ${MULT[R.m]} • bank ${S.bank}${S.awarded?' (awarded)':''} • strikes ${S.strikes}/3</h2>
+     <div class="hq">${esc(R.q)}</div>
+     ${R.a.map((a,i)=>`<div class="hans ${S.rev[i]?'done':''}" onclick='dispatch("reveal",${i})'><span class="n">${i+1}</span>${esc(a.t)}<span class="p">${a.p}${R.m>1?' ×'+R.m:''}</span></div>`).join('')}
+     <h2 style="margin-top:12px">Who’s playing?</h2><div class="hgrid">${B(esc(S.teams[0].name),'control',0,S.control===0?'sel':'')}${B(esc(S.teams[1].name),'control',1,S.control===1?'sel':'')}</div>
+     <div class="hgrid" style="margin-top:10px">${B('✕ STRIKE','strike',null,'red')}${B('✕ Face-off X','faceoffX',null,'red')}${B('Clear strikes','clearStrikes')}
+     ${B('◀ Bank to '+esc(S.teams[0].name),'award',0,'gold')}${B('Bank to '+esc(S.teams[1].name)+' ▶','award',1,'gold')}${B('Reveal rest','revealAll')}${B('Next round ▶','next')}${B(S.showQ?'Hide question':'Show question','toggleQ')}${B('↶ UNDO','undo',null,'gold')}</div></div>`;
+  } else if(S.screen==='fm'){
+    const F=S.fm;
+    body=`<div class="hcard"><h2>Fast Money • Player ${F.player+1} • clock ${F.time}s • total ${fmTotal()}${F.won?' • WON!':''}</h2>
+     <div class="hgrid">${B(F.running?'⏸ Pause clock':'▶ Start clock','fmTimer',null,'gold')}${B('Reset clock','fmResetTimer')}${B('Player 1','fmPlayer',0,F.player===0?'sel':'')}${B('Player 2','fmPlayer',1,F.player===1?'sel':'')}
+     ${B(F.hide?'Show P1 answers':'Hide P1 answers','fmHide')}${B('Duplicate buzz','sound','dup','red')}${B('Buzzer','sound','buzz','red')}${B('↶ UNDO','undo',null,'gold')}${B('Clear all','fmResetAll')}</div></div>
+     <div class="hcard hfm">${[0,1,2,3,4].map(r=>{const q=fmQ(r);return `<div class="hfmrow"><div class="q">${r+1}. ${esc(q.q)}</div>
+       <div class="opts">${q.a.map(a=>`${esc(a.t)} <b>${a.p}</b>`).join(' · ')}</div>
+       ${[0,1].map(p=>{const c=F.cells[p][r];const v=cellPts(p,r);
+        return `<div class="line"><b>P${p+1}</b><input id="in${p}${r}" value="${esc(c.text)}" placeholder="their answer" onkeydown="if(event.key==='Enter')dispatch('fmText',{p:${p},r:${r},text:this.value})">
+         <button class="hb" onclick="dispatch('fmText',{p:${p},r:${r},text:document.getElementById('in${p}${r}').value})">Show</button>
+         <button class="hb gold" onclick='dispatch("fmReveal",{p:${p},r:${r}})'>${c.shown?'= '+v:'Survey says'}</button></div>
+         ${c.text?`<div class="line"><span class="m">counts as:</span><select onchange='dispatch("fmSet",{p:${p},r:${r},m:+this.value})'><option value="-1" ${c.m<0?'selected':''}>✕ not on board (0)</option>${q.a.map((a,i)=>`<option value="${i}" ${c.m===i?'selected':''}>${esc(a.t)} (${a.p})</option>`).join('')}</select></div>`:''}`}).join('')}</div>`}).join('')}</div>`;
+  } else if(S.screen==='winner'){
+    body=`<div class="hcard"><h2>Winner screen</h2><div class="hgrid">${B('💰 Go to Fast Money','fm',null,'gold')}${B('Back to board','backToRound')}${B('Sudden death','round',roundsOf(S).length-1)}</div></div>`;
+  } else body=`<div class="hcard"><h2>Title screen</h2><div class="hgrid">${B('▶ Start Round 1','round',0,'gold')}</div></div>`;
+  const nav=`<div class="hcard"><h2>Game</h2><div class="hgrid">${B('Title','title')}${B('◀ Prev round','prev')}${B('Next round ▶','next')}${B('🏆 Winner','winner')}${B('💰 Fast Money','fm')}${B('↶ UNDO','undo',null,'gold')}
+     ${B('👏 Applause','sound','applause')}${B('🎺 Theme','sound','theme')}${B('🔔 Ding','sound','ding')}${B('Game 1 (reset)','newGame',0)}${B('Game 2 (reset)','newGame',1)}</div></div>`;
+  const jump=`<div class="hcard"><h2>Jump to round</h2><div class="hgrid">${roundsOf(S).map((R,i)=>B((R.sudden?'Sudden death':'R'+(i+1))+' ×'+R.m,'round',i,S.screen==='round'&&S.r===i?'sel':'')).join('')}</div></div>`;
+  h.innerHTML=`<h1>🦃 Host Remote — ${GAMES[S.g].name}</h1>${linkHTML()}${script}${body}${scores}${nav}${jump}<div class="hcard"><button class="hb" onclick="printCards()">🖨 Print host cards</button></div>`;
+  restoreFocus(keep);
+}
+function restoreFocus(keep){if(!keep)return;const el=document.getElementById(keep.id);if(el){el.value=keep.v;el.focus();try{el.setSelectionRange(keep.s,keep.s)}catch(e){}}}
+
+/* ---------- Printable host cards ---------- */
+function printCards(){
+  let h='';
+  GAMES.forEach((G,gi)=>{
+    h+=`<h1 class="${gi?'pb':''}">Friendsgiving Feud — ${G.name} — HOST CARDS</h1>`;
+    [...G.rounds,{...G.sudden,sudden:true}].forEach((R,i)=>{
+      h+=`<h2>${R.sudden?'SUDDEN DEATH':'ROUND '+(i+1)} — ${MULT[R.m]} POINTS (×${R.m})</h2><div class="pq">${esc(R.q)}</div><table>${R.a.map((a,j)=>`<tr><td style="width:24px">${j+1}</td><td>${esc(a.t)}</td><td class="p">${a.p}</td><td class="p">${a.p*R.m}</td></tr>`).join('')}</table>`});
+    h+=`<h2>FAST MONEY (Player 1: 20 sec, Player 2: 25 sec, goal 200)</h2>`;
+    G.fm.forEach((q,i)=>{h+=`<div class="pq">${i+1}. ${esc(q.q)}</div><table>${q.a.map(a=>`<tr><td>${esc(a.t)} <span class="al">${a.al.length?'(also: '+a.al.map(esc).join(', ')+')':''}</span></td><td class="p">${a.p}</td></tr>`).join('')}</table>`});
+  });
+  $('#print').innerHTML=h;window.print();
+}
+
+/* ---------- boot ---------- */
+function fit(){const s=Math.min(innerWidth/1600,innerHeight/900);$('#stage').style.transform=`scale(${s})`}
+if(IS_HOST){document.body.className='host-mode';document.documentElement.style.background='#06123a';$('#wrap').style.display='none';$('#host').style.display='block';renderHost();send({type:'hello'});
+  const hc=(location.hash.split('=')[1]||'').toUpperCase();if(hc)connectHost(hc)}
+else{document.body.className='board-mode';addEventListener('resize',fit);fit();render({});startBoardPeer();
+  document.addEventListener('pointerdown',()=>ac(),{once:true});document.addEventListener('keydown',()=>ac(),{once:true})}
+</script>
+</body>
+</html>
