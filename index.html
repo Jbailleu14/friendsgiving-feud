@@ -745,7 +745,7 @@ $('#help').innerHTML=`<h2>HOST KEYS — press ? to close</h2>
 <div><kbd>X</kbd> strike / miss (3 strikes → steal) &nbsp; <kbd>L</kbd> answer clock</div>
 <div><kbd>Z</kbd> single face-off X (doesn't count as a strike)</div>
 <div><kbd>←</kbd> / <kbd>→</kbd> award the bank to the left / right team</div>
-<div><kbd>R</kbd> reveal the rest of the board (no points)</div>
+<div><kbd>R</kbd> reveal the next hidden answer, one at a time (after the round, no points)</div>
 <div><kbd>N</kbd> next round &nbsp; <kbd>B</kbd> back a round</div>
 <div><kbd>Q</kbd> hide / show the question</div>
 <div><kbd>C</kbd> clear strikes &nbsp; <kbd>W</kbd> winner screen</div>
@@ -785,7 +785,7 @@ addEventListener('keydown',e=>{
     else if(k==='l')dispatch(S.ak?'akStop':'akGo');
     else if(k==='x')dispatch('strike');else if(k==='z')dispatch('faceoffX');else if(k==='c')dispatch('clearStrikes');
     else if(k==='ArrowLeft'||k==='ArrowRight'){if(!S.ph||S.ph==='play'||S.ph==='steal')dispatch('award',k==='ArrowLeft'?0:1)}
-    else if(k==='r')dispatch('revealAll');else if(k==='n')dispatch('next');else if(k==='b'){const aw=S.awards&&S.awards[S.r-1];if(S.r>0&&(!aw||confirm('Replay round '+S.r+'? The '+aw.p+' points '+S.teams[aw.t].name+' got in it will be taken back.')))dispatch('prev')}
+    else if(k==='r'&&S.awarded){const R=cur(),i=R.a.findIndex((_,j)=>!S.rev[j]);if(i>=0)dispatch('reveal',i)}else if(k==='n')dispatch('next');else if(k==='b'){const aw=S.awards&&S.awards[S.r-1];if(S.r>0&&(!aw||confirm('Replay round '+S.r+'? The '+aw.p+' points '+S.teams[aw.t].name+' got in it will be taken back.')))dispatch('prev')}
     else if(k==='q')dispatch('toggleQ');else if(k==='w')dispatch('winner');else if(k==='g')dispatch('fm');else if(k==='t')dispatch('title');
     else handled=false}
   else if(S.screen==='winner'){const tie=GW()<0&&S.teams[0].score===S.teams[1].score;if(k===' '||k==='Enter'||k==='g')tie?dispatch('round',roundsOf(S).length-1):dispatch('fm');else if(k==='b'||k==='Escape')dispatch('backToRound');else handled=false}
@@ -841,13 +841,16 @@ function hostScript(){
     if(ph==='playpass'){const w=T[S.foWin];return{h:`🤔 ${w} won the face-off`,say:[`${w}, you won the face-off! Are you going to PLAY or PASS?`],do:'Tap <b>▶ PLAY</b> or <b>PASS ⇄</b> for what they choose.'}}
     if(ph==='steal')return{h:'🕵️ Chance to steal',say:['Three strikes!',`${T[o]}, put your heads together. Give me ONE answer and you steal all ${S.bank} points.`,'(let them huddle)','Captain, what’s your answer?','(they answer)','Survey says…!'],
       do:`On the board → tap it: they steal the points. Not on the board → <b>✕ Wrong</b>: ${esc(T[c])} keep them.`};
-    if(ph==='done'){const w=S.awardedTo,gw=GW(),rest=left?['Let’s see what else was up there…']:[];
+    if(ph==='done'){const w=S.awardedTo,gw=GW(),nh=R.a.findIndex((_,i)=>!S.rev[i]),begun=R.a.some((_,i)=>S.rev[i]===2),
+        rest=left?[...(begun?[]:['Let’s see what else was up there…']),`Number ${nh+1}…`,'(tap Show — let everyone say it with you)']:[];
       if(R.sudden)return{h:'🏆 Sudden death winner',say:[`${R.a[0].t}! That’s the number one answer!`,`${T[w]} WIN THE GAME!`],do:'Tap <b>🏆 Winner screen</b>.'};
-      const how=S.how==='steal'?[`They stole it! ${T[w]} take ${S.bank} points!`]:S.how==='stealFail'?['Not on the board!',`${T[w]}, you hold on to ${S.bank} points!`]:S.how==='clear'?['You cleared the board!',`${T[w]} take ${S.bank} points!`]:[`${T[w]} take ${S.bank} points!`];
-      if(gw>=0)return{h:'🏆 We have a winner!',say:[...how,...rest,`${T[gw]} have ${S.teams[gw].score} points — you WIN the game and you’re going to FAST MONEY!`],
-        do:`${left?'Tap <b>Reveal the rest</b>, then tap':'Tap'} <b>🏆 Winner screen</b>.`};
+      const how=begun?[]:S.how==='steal'?[`They stole it! ${T[w]} take ${S.bank} points!`]:S.how==='stealFail'?['Not on the board!',`${T[w]}, you hold on to ${S.bank} points!`]:S.how==='clear'?['You cleared the board!',`${T[w]} take ${S.bank} points!`]:[`${T[w]} take ${S.bank} points!`];
+      if(gw>=0&&left)return{h:'🏆 We have a winner!',say:[...how,...rest],do:`Tap <b>🗣 Show #${nh+1}</b>. ${left} still hidden — one at a time.`};
+      if(gw>=0)return{h:'🏆 We have a winner!',say:[...how,`${T[gw]} have ${S.teams[gw].score} points — you WIN the game and you’re going to FAST MONEY!`],
+        do:'Tap <b>🏆 Winner screen</b>.'};
       const nx=S.r+1<roundsOf(S).length&&roundsOf(S)[S.r+1].sudden?'Nobody has 300 yet… and you know what that means.':S.r+1===2?'Next up, the points are DOUBLED.':S.r+1===3?'Next up, the LAST round, and it’s TRIPLE points.':'';
-      return{h:'✅ End of round '+(S.r+1),say:[...how,...rest,scoreLine(),nx].filter(Boolean),do:`${left?'Tap <b>Reveal the rest</b> (no points), then tap':'Tap'} <b>${esc(nextLabel())}</b>.`}}
+      if(left)return{h:'✅ End of round '+(S.r+1),say:[...how,...rest],do:`Tap <b>🗣 Show #${nh+1}</b> (no points). ${left} still hidden — one at a time.`};
+      return{h:'✅ End of round '+(S.r+1),say:[...how,scoreLine(),nx].filter(Boolean),do:`Tap <b>${esc(nextLabel())}</b>.`}}
     // play
     const ev=S.lastEv,lead=ev==='start'?[S.passed?`${T[1-c]} passed! ${T[c]}, you’re playing.`:`${T[c]} are going to play!`,'Let’s go down the line.']:
       ev==='hit'?[HITS[S.rev.filter(Boolean).length%HITS.length],left===1?'Just ONE answer left on the board!':`${left} answers left on the board.`]:
@@ -927,7 +930,7 @@ function renderHost(){
     else if(ph==='playpass'){act=`<div class="hgrid">${B('▶ PLAY','playpass','play','gold hbig')}${B('PASS ⇄','playpass','pass','hbig')}</div>`;note=`${T[S.foWin]} won the face-off — play or pass?`}
     else if(ph==='play'){tap=true;act=`<div class="hgrid">${B('✕ STRIKE','strike',null,'red hbig')}</div>`;note=`${T[S.control]} playing &nbsp; ${'❌'.repeat(S.strikes)}${'⬜'.repeat(3-S.strikes)}`}
     else if(ph==='steal'){tap=true;act=`<div class="hgrid">${B('✕ Wrong — '+T[S.control]+' keep it','strike',null,'red hbig')}</div>`;note=`${T[1-S.control]} can steal ${S.bank}. On the board? Tap it.`}
-    else{tap=true;const more=R.a.some((_,i)=>!S.rev[i]);act=`<div class="hgrid">${more?B('Reveal the rest','revealAll',null,'hbig'):''}${B(esc(nextLabel()),'next',null,'gold hbig')}</div>`;
+    else{tap=true;const nh=R.a.findIndex((_,i)=>!S.rev[i]);act=`<div class="hgrid">${nh>=0?B('🗣 Show #'+(nh+1),'reveal',nh,'gold hbig'):''}${B(esc(nextLabel()),'next',null,nh>=0?'':'gold hbig')}</div>`;
       note=S.awardedTo!=null?`${T[S.awardedTo]} got the points. Tapping answers now just shows them.`:''}
     const clock=(S.akOut?`<div class="htime out">⏰ TIME’S UP! If they didn’t answer, tap ✕</div>`:'')+(ph==='done'?'':S.ak?`<div class="hgrid">${B('⏹ Stop clock — <span id="hak"></span>','akStop',null,'hbig')}</div>`:`<div class="hgrid">${B('⏱ Start '+(S.akSec||30)+'-sec clock','akGo',null,'hbig blue')}</div>`);
     const list=R.a.map((a,i)=>`<div class="hans ${S.rev[i]?'done':''} ${tap?'':'dim'}" ${tap&&!S.rev[i]?`onclick='dispatch("ans",${i})'`:''}><span class="n">${i+1}</span>${esc(a.t)}<span class="p">${a.p}${R.m>1?' ×'+R.m:''}</span></div>`).join('');
@@ -937,7 +940,7 @@ function renderHost(){
      <div class="hsecs"><span>Clock length:</span>${[10,20,30,45,60].map(n=>B(n+'s','akSec',n,(S.akSec||30)===n?'sel':'')).join('')}</div></div>
      <details class="hcard hmore" ${moreOpen?'open':''} ontoggle="moreOpen=this.open"><summary>🛠 Manual fixes (only if something goes wrong)</summary><div class="hgrid" style="margin-top:8px">
      ${B('Playing: '+T[0],'control',0,S.control===0?'sel':'')}${B('Playing: '+T[1],'control',1,S.control===1?'sel':'')}${B('✕ Strike','strike',null,'red')}${B('✕ Buzzer sound only','faceoffX',null,'red')}${B('Clear strikes','clearStrikes')}
-     ${B('◀ Bank to '+T[0],'award',0,'gold')}${B('Bank to '+T[1]+' ▶','award',1,'gold')}${B('Reveal rest','revealAll')}${B('Next round ▶','next')}${B(S.showQ?'Hide question':'Show question','toggleQ')}<button class="hb" onclick="if(!${S.rev.some(Boolean)}||confirm('Swap in a different question? This round restarts.'))dispatch('swapRound')">🔀 Swap question</button></div></details>`;
+     ${B('◀ Bank to '+T[0],'award',0,'gold')}${B('Bank to '+T[1]+' ▶','award',1,'gold')}${B('Reveal all at once','revealAll')}${B('Next round ▶','next')}${B(S.showQ?'Hide question':'Show question','toggleQ')}<button class="hb" onclick="if(!${S.rev.some(Boolean)}||confirm('Swap in a different question? This round restarts.'))dispatch('swapRound')">🔀 Swap question</button></div></details>`;
   } else if(S.screen==='fm'){
     const F=S.fm,p=F.player,st=F.stage||'ask',nx=fmNext(),full=p?25:20;
     const si=p*2+(st==='reveal'?1:0)+(p===1&&st==='reveal'&&!nx?1:0);
