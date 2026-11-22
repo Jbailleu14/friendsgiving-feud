@@ -193,12 +193,16 @@ body.host-mode{background:#06123a;font-family:"Helvetica Neue",Arial,sans-serif;
 .hfmrow .q{font-weight:800;font-size:16px;margin-bottom:4px}
 .hfmrow .opts{font-size:13px;color:#b9cdf7;margin-bottom:6px}
 .hfmrow .line{display:flex;gap:6px;align-items:center;margin-top:4px}
+.hfmrow.cur{outline:3px solid #ffd54a;border-radius:10px}
+.hfmrow .fmv{min-width:44px;text-align:center;font:900 22px Arial;color:#ffd54a}
+.hfmrow input:disabled{background:#dfe8ff;color:#0a2466}
 .hfmrow input{flex:1;font-size:17px;padding:8px;border-radius:8px;border:2px solid #8fb8ff;background:#fff;color:#0a2466;font-weight:700;min-width:0}
 .hfmrow .m{font-size:13px;color:#ffd54a;min-width:110px}
 .hfmrow button{padding:8px 10px;font-size:14px}
 .hsay{font-size:20px;line-height:1.4;background:#fff6d6;color:#3b2300;border-radius:10px;padding:12px 14px;font-weight:800;margin-bottom:8px}
 .hdo{font-size:16px;color:#d6e4ff;line-height:1.5}
 .hscript h2{color:#ffd54a}
+.hcue{font-size:15px;color:#9fc3ff;font-style:italic;margin:-2px 0 8px 4px}
 .hlink{font-size:14px;font-weight:800;padding:6px 10px;border-radius:8px;background:#5a1a10;margin-bottom:10px;display:inline-block}
 .hlink.ok{background:#14532d}
 .hrow{display:flex;gap:6px;align-items:center;margin-top:6px}
@@ -285,7 +289,7 @@ let S=null;               // game state (board owns it; host mirrors it)
 const hist=[];            // undo stack
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-function freshFM(){return {player:0,time:20,running:false,hide:false,sel:{p:0,r:0},won:false,
+function freshFM(){return {player:0,time:20,running:false,hide:false,sel:{p:0,r:0},won:false,stage:'ask',
   cells:[0,1].map(()=>[0,1,2,3,4].map(()=>({text:'',m:-1,shown:false})))}}
 function freshGame(names){return {screen:'title',teams:[{name:names[0],score:0},{name:names[1],score:0}],set:drawSet(),r:0,rev:[],strikes:0,bank:0,awarded:false,showQ:true,fm:freshFM(),ph:'faceoff',fo:{buzz:null,turn:null,first:null},foWin:null,ak:null,akOut:false,akOn:false,akSec:30,gameWinner:null}}
 function roundsOf(st){return [...st.set.rounds.map((id,i)=>({...QBYID[id],m:st.set.m[i]})),{...QBYID[st.set.sd],a:QBYID[st.set.sd].a.slice(0,1),m:3,sudden:true}]}
@@ -349,7 +353,7 @@ function play(n,...a){if(muted||IS_HOST)return;try{SND[n](...a)}catch(e){console
 const SLOTS=[['theme','🎵 Theme song','Title screen, Fast Money intro, winner screen'],['round','🎬 Round start','Each “ROUND X” splash (if empty: first seconds of the theme)'],
   ['board','🟦 Board reveal','When the answer boxes appear after the splash'],['buzzin','🔔 Face-off buzzer','When you tap who hit the buzzer first'],
   ['ding','✅ Correct answer','Every answer that flips over'],['strike','❌ Strike buzzer','Strikes, face-off X, Fast Money zeros'],['award','👏 Points awarded','When the bank goes to a team'],
-  ['fmclock','⏱ Fast Money clock','Loops while the Fast Money clock runs'],['timeup','⏰ Time’s up','Fast Money clock hits zero'],['win','🏆 Big win','Fast Money reaches 200']];
+  ['dup','🔁 Duplicate answer','Fast Money: player 2 repeats an answer'],['fmclock','⏱ Fast Money clock','Loops while the Fast Money clock runs'],['timeup','⏰ Time’s up','Fast Money clock hits zero'],['win','🏆 Big win','Fast Money reaches 200']];
 const CUSTOM={},CNAME={},SBLOB={},CBUF={};let music=null,musicKey=null,FILEOUT=null;
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('ffeud',1);r.onupgradeneeded=()=>r.result.createObjectStore('snd');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
 async function sndPut(k,file){const db=await idb();await new Promise((res,rej)=>{const t=db.transaction('snd','readwrite');file?t.objectStore('snd').put(file,k):t.objectStore('snd').delete(k);t.oncomplete=res;t.onerror=()=>rej(t.error)});
@@ -376,6 +380,7 @@ function cue(n){if(muted||IS_HOST)return;
     case 'buzzin': CUSTOM.buzzin?playFile('buzzin'):play('buzzin');break;
     case 'board': CUSTOM.board?playFile('board'):play('board',S&&S.set?roundsOf(S)[Math.min(S.r,roundsOf(S).length-1)].a.length:6);break;
     case 'timebeep': play('dup');break;
+    case 'dup': CUSTOM.dup?playFile('dup'):play('dup');break;
     case 'strike': CUSTOM.strike?playFile('strike'):play('buzz');break;
     case 'award': if(CUSTOM.award)playFile('award');else{play('ding');setTimeout(()=>play('ding'),180);setTimeout(()=>play('applause',2.5),250)}break;
     case 'fmIntro': CUSTOM.theme?playFile('theme',{music:1,max:12}):play('theme');break;
@@ -387,7 +392,7 @@ function cue(n){if(muted||IS_HOST)return;
     case 'themeToggle': if(music)stopMusic();else cue('title');break;
     case 'stop': stopMusic(.5);break;
   }}
-function sfx(n){({ding:()=>cue('ding'),buzz:()=>cue('strike'),award:()=>cue('award'),buzzin:()=>cue('buzzin'),timebeep:()=>cue('timebeep')}[n]||(()=>play(n)))()}
+function sfx(n){({dup:()=>cue('dup'),ding:()=>cue('ding'),buzz:()=>cue('strike'),award:()=>cue('award'),buzzin:()=>cue('buzzin'),timebeep:()=>cue('timebeep')}[n]||(()=>play(n)))()}
 
 /* =====================================================================
    SYNC between the TV board and the optional Host Remote window
@@ -481,11 +486,11 @@ function dispatch(cmd,arg){
       if(ph==='playpass'||(ph==='faceoff'&&S.fo.turn==null)){hist.pop();return}
       if(ph==='faceoff'){foAnswer(i,fx);break}
       S.rev[i]=S.awarded?2:1;if(!S.awarded)S.bank+=R.a[i].p*R.m;fx.flip=[i];fx.snd='ding';
-      if(ph==='steal'){doAward(1-S.control,fx);fx.flash='STOLEN!';fx.later='award';break}
-      if(ph==='play'){if(R.a.every((_,j)=>S.rev[j])){doAward(S.control,fx);fx.flash='BOARD CLEARED!';fx.later='award'}else akStart()}
+      if(ph==='steal'){doAward(1-S.control,fx,'steal');fx.flash='STOLEN!';fx.later='award';break}
+      if(ph==='play'){S.lastEv='hit';if(R.a.every((_,j)=>S.rev[j])){doAward(S.control,fx,'clear');fx.flash='BOARD CLEARED!';fx.later='award'}else akStart()}
       break}
     case 'buzz': if(S.screen!=='round'||S.ph!=='faceoff'){hist.pop();return}S.fo={buzz:arg,turn:arg,first:null};akStart();fx.pulse=arg;fx.snd='buzzin';break;
-    case 'playpass': if(S.ph!=='playpass'||S.foWin==null){hist.pop();return}S.control=arg==='pass'?1-S.foWin:S.foWin;S.ph='play';fx.pulse=S.control;akStart();break;
+    case 'playpass': if(S.ph!=='playpass'||S.foWin==null){hist.pop();return}S.control=arg==='pass'?1-S.foWin:S.foWin;S.passed=arg==='pass';S.ph='play';S.lastEv='start';fx.pulse=S.control;akStart();break;
     case 'akGo': if(S.screen==='round')akRun(S.akSec||30);break;
     case 'akSec': S.akSec=+arg||30;if(S.ak)akRun(S.akSec);break;
     case 'akStop': akStop();break;
@@ -496,9 +501,9 @@ function dispatch(cmd,arg){
     case 'revealAll':{const R=cur();const list=[];R.a.forEach((_,i)=>{if(!S.rev[i]){S.rev[i]=2;list.push(i)}});fx.flip=list;fx.stagger=1;break}
     case 'strike':{const ph=S.ph||'play';
       if(ph==='faceoff'){if(S.fo.turn==null){fx.x=1;fx.snd='buzz';break}foAnswer(-1,fx);break}
-      if(ph==='steal'){fx.x=1;fx.snd='buzz';doAward(S.control,fx);fx.later='award';break}
+      if(ph==='steal'){fx.x=1;fx.snd='buzz';doAward(S.control,fx,'stealFail');fx.later='award';break}
       if(ph==='done'||ph==='playpass'){fx.x=1;fx.snd='buzz';break}
-      S.strikes=Math.min(3,S.strikes+1);fx.x=S.strikes;fx.snd='buzz';
+      S.strikes=Math.min(3,S.strikes+1);fx.x=S.strikes;fx.snd='buzz';S.lastEv='miss';
       if(S.strikes>=3&&S.control!=null){S.ph='steal';akStart();fx.flash='STEAL!'}else akStart();break}
     case 'faceoffX': fx.x=1;fx.snd='buzz';break;
     case 'clearStrikes': S.strikes=0;if(S.ph==='steal'){S.ph='play';akStop()}break;
@@ -512,7 +517,8 @@ function dispatch(cmd,arg){
     case 'fm': S.screen='fm';fx.splashFM=1;break;
     case 'fmTimer': if(S.fm.running){S.fm.running=false}else{if(S.fm.time<=0)S.fm.time=S.fm.player?25:20;S.fm.running=true}break;
     case 'fmResetTimer': S.fm.running=false;S.fm.time=S.fm.player?25:20;break;
-    case 'fmPlayer': {const p=arg!=null?arg:(S.fm.player?0:1);S.fm.player=p;S.fm.running=false;S.fm.time=p?25:20;S.fm.hide=p===1;S.fm.sel={p,r:firstOpen(p)};fx.snd='whoosh';break}
+    case 'fmPlayer': {const p=arg!=null?arg:(S.fm.player?0:1);S.fm.player=p;S.fm.running=false;S.fm.time=p?25:20;S.fm.hide=p===1;S.fm.stage='ask';S.fm.sel={p,r:firstOpen(p)};fx.snd='whoosh';break}
+    case 'fmStage': S.fm.stage=arg;if(arg==='reveal')S.fm.running=false;break;
     case 'fmHide': S.fm.hide=!S.fm.hide;fx.snd='whoosh';break;
     case 'fmSel': S.fm.sel=arg;break;
     case 'fmText':{const {p,r,text}=arg;const c=S.fm.cells[p][r];const m=matchAnswer(text,fmQ(r));
@@ -542,7 +548,7 @@ function dispatch(cmd,arg){
   save();render(fx);broadcast();
   if(fx.reEdit&&!FROM_REMOTE)beginEdit(fx.reEdit.p,fx.reEdit.r);
 }
-function loadRound(i){S.screen='round';S.r=i;S.rev=[];S.strikes=0;S.bank=0;S.awarded=false;S.awardedTo=null;S.showQ=true;S.control=null;S.started=true;const aw=S.awards&&S.awards[i];if(aw){S.teams[aw.t].score=Math.max(0,S.teams[aw.t].score-aw.p);delete S.awards[i]}if(roundsOf(S)[i].sudden)S.gameWinner=null;S.ph='faceoff';S.fo={buzz:null,turn:null,first:null};S.foWin=null;S.ak=null;S.akOut=false}
+function loadRound(i){S.screen='round';S.r=i;S.rev=[];S.strikes=0;S.bank=0;S.awarded=false;S.awardedTo=null;S.showQ=true;S.control=null;S.started=true;const aw=S.awards&&S.awards[i];if(aw){S.teams[aw.t].score=Math.max(0,S.teams[aw.t].score-aw.p);delete S.awards[i]}if(roundsOf(S)[i].sudden)S.gameWinner=null;S.ph='faceoff';S.fo={buzz:null,turn:null,first:null};S.foWin=null;S.lastEv=null;S.how=null;S.passed=false;S.ak=null;S.akOut=false}
 function GW(){if(S.gameWinner!=null)return S.gameWinner;const [a,b]=S.teams;return Math.max(a.score,b.score)>=300&&a.score!==b.score?(a.score>b.score?0:1):-1}
 function inGame(){return !!(S.started||S.r>0||S.rev.length||S.teams[0].score||S.teams[1].score)}
 function nRounds(st=S){return st.set.rounds.length}
@@ -551,7 +557,7 @@ function leader300(){return S.teams.findIndex(t=>t.score>=300)}
 function akStart(){S.akOut=false;if(!S.akOn){S.ak=null;return}akRun(S.akSec||30)}
 function akRun(d){S.akOut=false;S.ak={end:Date.now()+d*1000,dur:d}}
 function akStop(){S.ak=null;S.akOut=false}
-function doAward(t,fx){if(S.awarded)return;S.teams[t].score+=S.bank;S.awarded=true;S.awardedTo=t;S.ph='done';akStop();fx.pulse=t;
+function doAward(t,fx,how){if(S.awarded)return;S.how=how||'manual';S.teams[t].score+=S.bank;S.awarded=true;S.awardedTo=t;S.ph='done';akStop();fx.pulse=t;
   if(cur().sudden)S.gameWinner=t;(S.awards=S.awards||{})[S.r]={t,p:S.bank}}
 /* face-off: first buzzer answers; #1 wins outright, otherwise the other player tries to beat it; two misses = next pair */
 function foAnswer(i,fx){const R=cur(),t=S.fo.turn,f=S.fo.first;
@@ -560,9 +566,9 @@ function foAnswer(i,fx){const R=cur(),t=S.fo.turn,f=S.fo.first;
   if(!f){if(i===0){win=t;wi=0}else{S.fo.first={t,i};S.fo.turn=1-t;akStart()}}
   else if(i>=0&&(f.i<0||i<f.i)){win=t;wi=i}
   else if(f.i>=0){win=f.t;wi=f.i}
-  else{S.fo={buzz:null,turn:null,first:null};akStop();fx.flash='NEXT TWO PLAYERS!'}
+  else{S.fo={buzz:null,turn:null,first:null,again:true};akStop();fx.flash='NEXT TWO PLAYERS!'}
   if(win!=null){S.foWin=win;akStop();fx.pulse=win;
-    if(R.sudden){S.bank=R.a[wi].p*R.m;S.control=win;doAward(win,fx);fx.later='award'}else S.ph='playpass'}}
+    if(R.sudden){S.bank=R.a[wi].p*R.m;S.control=win;doAward(win,fx,'sudden');fx.later='award'}else S.ph='playpass'}}
 function firstOpen(p){for(let r=0;r<5;r++)if(!S.fm.cells[p][r].shown)return r;return 4}
 function checkFMWin(fx){const t=fmTotal();if(t>=200&&!S.fm.won){S.fm.won=true;fx.fmwin=1}else if(t<200)S.fm.won=false}
 function save(){if(IS_HOST)return;try{if(S)localStorage.setItem('ffeud_state',JSON.stringify(S));else localStorage.removeItem('ffeud_state')}catch(e){}}
@@ -580,7 +586,7 @@ function syncTicker(){if(S&&S.screen==='fm'&&S.fm.running){if(!ticker){ticker=se
 function stopTicker(){if(ticker){clearInterval(ticker);ticker=null;cue('clockStop')}}
 function tickOnce(){if(!S||!S.fm.running){stopTicker();return}S.fm.time=Math.max(0,S.fm.time-1);
   if(S.fm.time<=5&&S.fm.time>0&&!CUSTOM.fmclock)play('tick');
-  if(S.fm.time===0){S.fm.running=false;clearInterval(ticker);ticker=null;cue('timeup');}
+  if(S.fm.time===0){S.fm.running=false;S.fm.stage='reveal';clearInterval(ticker);ticker=null;cue('timeup');}
   const el=$('#timer');if(el){el.querySelector('.in').textContent=S.fm.time;el.classList.toggle('low',S.fm.time<=5)}
   save();broadcast()}
 
@@ -699,11 +705,11 @@ function openSoundPanel(){let el=$('#sndPanel');if(!el){el=document.createElemen
     if(miss.length)alert('Not sure which slot these go in — use “Choose file” on the right row:\n\n'+miss.join('\n'))};
   el.querySelectorAll('[data-clear]').forEach(b=>b.onclick=async()=>{await sndPut(b.dataset.clear,null);openSoundPanel()});
   el.querySelectorAll('[data-test]').forEach(b=>b.onclick=()=>{ac();const k=b.dataset.test;stopMusic(.2);
-    ({theme:()=>cue('title'),round:()=>cue('round'),board:()=>cue('board'),buzzin:()=>cue('buzzin'),ding:()=>cue('ding'),strike:()=>cue('strike'),award:()=>cue('award'),fmclock:()=>CUSTOM.fmclock?playFile('fmclock',{music:1,max:6}):play('tick'),timeup:()=>cue('timeup'),win:()=>cue('bigwin'),stop:()=>{}}[k])()});
+    ({theme:()=>cue('title'),round:()=>cue('round'),board:()=>cue('board'),buzzin:()=>cue('buzzin'),dup:()=>cue('dup'),ding:()=>cue('ding'),strike:()=>cue('strike'),award:()=>cue('award'),fmclock:()=>CUSTOM.fmclock?playFile('fmclock',{music:1,max:6}):play('tick'),timeup:()=>cue('timeup'),win:()=>cue('bigwin'),stop:()=>{}}[k])()});
   $('#spClose').onclick=()=>{stopMusic(.3);el.remove();if(!S)render({})};
 }
 function guessSlot(n){n=n.toLowerCase();
-  const M=[['timeup',/time.?s?.?up|out.?of.?time/],['win',/win|200|victory|celebrat/],['fmclock',/clock|fast.?money|countdown|timer|tick/],['buzzin',/buzz.?in|ring.?in|face.?off/],
+  const M=[['dup',/dup|repeat|double.?answer|try.?again/],['timeup',/time.?s?.?up|out.?of.?time/],['win',/win|200|victory|celebrat/],['fmclock',/clock|fast.?money|countdown|timer|tick/],['buzzin',/buzz.?in|ring.?in|face.?off/],
     ['strike',/strike|wrong|incorrect|buzzer|\bx\b|eh.?eh|fail/],['ding',/ding|correct|right|good|bell|clang/],['award',/award|applaus|cheer|point/],
     ['board',/board|tile|reveal/],['round',/round|sting|bumper|transition/],['theme',/theme|intro|open|main|music|song/]];
   for(const [k,r] of M)if(r.test(n))return k;return null}
@@ -806,43 +812,78 @@ document.addEventListener('click',e=>{if(IS_HOST||!S||S.screen!=='fm')return;con
    HOST REMOTE (separate window/tab, never shown on the TV)
    ===================================================================== */
 function q_(t){return `“${esc(t)}”`}
+const ORD=['first','second','third','fourth','fifth','sixth'];
+const HITS=['Good answer! Good answer!','There it is!','That’s what I’m talking about!','Look at that!','Ohhh, they got it!','I like it, I like it!'];
+function scoreLine(){const [a,b]=S.teams;return `That puts the score at ${a.name} ${a.score}, ${b.name} ${b.score}.`}
 function hostScript(){
   const T=S.teams.map(t=>t.name);
-  if(S.screen==='title')return{h:'🎬 Open the show',say:`Welcome to FRIENDSGIVING FEUD! Give it up for our two families — ${T[0]}… and ${T[1]}! We’ve got four rounds: single, single, double and TRIPLE points. First family to 300 plays Fast Money. Let’s play the Feud!`,
-    do:'Theme music is playing (tap <b>⏹ Stop music</b> when you start talking). Tap <b>Start Round 1</b> and call one player from each team up to the buzzer.'};
+  if(S.screen==='title')return inGame()?{h:'⏸ Title screen',say:['We’ll be right back to the Feud!'],do:'Tap <b>▶ Back to the game</b> to pick up where you left off.'}:
+    {h:'🎬 Open the show',say:['Welcome to FRIENDSGIVING FEUD!','(wait for the theme to fade, or tap ⏹ Stop music)',`Let’s meet our families! On my left… ${T[0]}! ${T[0]}, introduce your family!`,`And on my right… ${T[1]}! ${T[1]}, introduce your family!`,
+      'Here’s how it works: four rounds. Rounds one and two are single points, round three is DOUBLE, and round four is TRIPLE. First family to 300 wins and plays Fast Money!','Let’s play the Feud!'],
+     do:'Line each family up in order (that’s the order they answer in). Tap <b>▶ Start Round 1</b> when you say “Let’s play the Feud!”'};
   if(S.screen==='round'){
     const R=cur(),n=R.a.length,c=S.control,o=c==null?null:1-c,ph=S.ph||'play',fo=S.fo||{},left=R.a.filter((_,i)=>!S.rev[i]).length;
-    const rl=R.sudden?'sudden death':`round ${S.r+1} of ${nRounds()}`;
-    if(ph==='done'){const w=S.awardedTo,gw=GW();
-      if(gw>=0)return{h:'🏆 Game over!',say:`${T[gw]} WIN THE GAME with ${S.teams[gw].score} points! ${T[gw]}, you’re going to play FAST MONEY!`,do:`${left?'Tap <b>Reveal the rest</b> if you want, then ':''}tap <b>🏆 Winner screen</b>.`};
-      return{h:'✅ Points awarded',say:`${T[w]} take ${S.bank} points! That puts you at ${S.teams[w].score}. Let’s see what else was up there…`,
-        do:`${left?'Tap <b>Reveal the rest</b> (no points), then ':''}tap <b>${esc(nextLabel())}</b>.`}}
+    const Q=`Here’s the question: ${R.q}`;
     if(ph==='faceoff'){
-      if(fo.turn==null)return{h:`🔔 Face-off — ${rl}`,say:R.sudden?`Nobody reached 300, so it’s SUDDEN DEATH! Only the NUMBER ONE answer is on the board, and it’s worth triple points. Whoever says it wins the game. Hands on the buzzer… ${R.q}`:`We surveyed 100 people. Top ${n} answers are on the board. Hands on the buzzer… ${R.q}`,
-        do:`Call one player from each team to the buzzer (new players every round). Read the question. When someone buzzes in, tap their team.`};
-      const f=fo.first;
-      if(!f)return{h:`🎤 ${T[fo.turn]} buzzed in`,say:`${T[fo.turn]}?`,do:`Tap the answer they said, or <b>✕ Not on the board</b>. The #1 answer wins the face-off on the spot.`};
-      return{h:`🎤 Now ${T[fo.turn]}`,say:f.i>=0?`${R.a[f.i].t} is number ${f.i+1}! ${T[fo.turn]}, can you beat it?`:`Not on the board! ${T[fo.turn]}, anything up there wins it.`,
-        do:f.i>=0?`They need an answer <b>higher than #${f.i+1}</b>. Tap what they said, or ✕.`:`Any answer on the board wins. Tap it, or ✕ (then two new players face off).`}}
-    if(ph==='playpass')return{h:`🤔 ${T[S.foWin]} won the face-off`,say:`${T[S.foWin]}, you won the face-off! Do you want to PLAY or PASS?`,do:'Tap <b>Play</b> or <b>Pass</b> for what they choose.'};
-    if(ph==='steal')return{h:'🕵️ STEAL!',say:`That’s three strikes! ${T[o]}, huddle up. Give me ONE answer and you steal all ${S.bank} points.`,
-      do:`Let them huddle (tap <b>⏱ Start clock</b> if you want to time it), then the captain answers. On the board → tap it and they take the points. Not on the board → <b>✕ Wrong</b> and ${esc(T[c])} keep them.`};
-    const lines=['Good answer! Good answer!','Survey says…!','Show me…!','I like it, I like it!'];
-    return{h:`▶ ${T[c]} are playing`,say:S.strikes?`${S.strikes} strike${S.strikes>1?'s':''}… careful now. Next player.`:`${lines[(S.rev.filter(Boolean).length)%lines.length]} Next player.`,
-      do:`Go down the line, one answer per player. On the board → tap it. Not on the board → <b>✕ STRIKE</b>. ${left} answer${left!==1?'s':''} left. Clear the board to win the round; 3 strikes and the other team can steal.`};
+      if(fo.turn==null){
+        if(fo.again)return{h:'🔁 Next two players',say:['Neither one is up there!',`Next player from each family, come on up.`,'Hands on the buzzer…',`Same question: ${R.q}`],
+          do:'Bring up the next person in line from each family. Tap the team that buzzes first.'};
+        const intro=R.sudden?['Nobody made it to 300… so it’s SUDDEN DEATH!','Only the NUMBER ONE answer is on the board, worth triple points. Whoever says it wins the game!']:
+          [['Round one!','Round two!','Round three… and the points are DOUBLED!','Round four, the last round… TRIPLE points! Anything can happen.'][S.r]||`Round ${S.r+1}!`];
+        return{h:R.sudden?'⚡ Sudden death face-off':`🔔 Round ${S.r+1} of ${nRounds()} — face-off`,
+          say:[...intro,`Send up the ${R.sudden?'next':ORD[S.r]||'next'} player from each family. Shake hands… hands on the buzzer.`,R.sudden?`One answer on the board. ${Q}`:`We surveyed 100 people. Top ${n} answers are on the board. ${Q}`],
+          do:'When someone hits the buzzer, tap their team below. (No buzzer? Whoever slaps the table first.)'};}
+      const f=fo.first,A=T[fo.turn];
+      if(!f)return{h:`🎤 ${A} buzzed in first`,say:[`${A}?`,'(they answer)','Survey says…!'],do:`Tap the answer they gave, or <b>✕ Not on the board</b>.${R.sudden?' Only the #1 answer counts.':' If it’s the #1 answer, they win the face-off right there.'}`};
+      return{h:`🎤 Over to ${A}`,say:f.i>=0?[`${R.a[f.i].t}! That’s the number ${f.i+1} answer.`,`${A}, you need something higher. What do you say?`,'(they answer)','Survey says…!']:
+        [R.sudden?'That’s not the number one answer!':'Not on the board!',R.sudden?`${A}, if you say the number one answer, you win the game. What do you say?`:`${A}, anything up there wins it. What do you say?`,'(they answer)','Survey says…!'],
+        do:f.i>=0?`Tap their answer. They win the face-off only with an answer <b>higher than #${f.i+1}</b>. Not on the board → ✕.`:`Tap their answer, or ✕ (then the next two players come up).`};}
+    if(ph==='playpass'){const w=T[S.foWin];return{h:`🤔 ${w} won the face-off`,say:[`${w}, you won the face-off! Are you going to PLAY or PASS?`],do:'Tap <b>▶ PLAY</b> or <b>PASS ⇄</b> for what they choose.'}}
+    if(ph==='steal')return{h:'🕵️ Chance to steal',say:['Three strikes!',`${T[o]}, put your heads together. Give me ONE answer and you steal all ${S.bank} points.`,'(let them huddle)','Captain, what’s your answer?','(they answer)','Survey says…!'],
+      do:`On the board → tap it: they steal the points. Not on the board → <b>✕ Wrong</b>: ${esc(T[c])} keep them.`};
+    if(ph==='done'){const w=S.awardedTo,gw=GW(),rest=left?['Let’s see what else was up there…']:[];
+      if(R.sudden)return{h:'🏆 Sudden death winner',say:[`${R.a[0].t}! That’s the number one answer!`,`${T[w]} WIN THE GAME!`],do:'Tap <b>🏆 Winner screen</b>.'};
+      const how=S.how==='steal'?[`They stole it! ${T[w]} take ${S.bank} points!`]:S.how==='stealFail'?['Not on the board!',`${T[w]}, you hold on to ${S.bank} points!`]:S.how==='clear'?['You cleared the board!',`${T[w]} take ${S.bank} points!`]:[`${T[w]} take ${S.bank} points!`];
+      if(gw>=0)return{h:'🏆 We have a winner!',say:[...how,...rest,`${T[gw]} have ${S.teams[gw].score} points — you WIN the game and you’re going to FAST MONEY!`],
+        do:`${left?'Tap <b>Reveal the rest</b>, then tap':'Tap'} <b>🏆 Winner screen</b>.`};
+      const nx=S.r+1<roundsOf(S).length&&roundsOf(S)[S.r+1].sudden?'Nobody has 300 yet… and you know what that means.':S.r+1===2?'Next up, the points are DOUBLED.':S.r+1===3?'Next up, the LAST round, and it’s TRIPLE points.':'';
+      return{h:'✅ End of round '+(S.r+1),say:[...how,...rest,scoreLine(),nx].filter(Boolean),do:`${left?'Tap <b>Reveal the rest</b> (no points), then tap':'Tap'} <b>${esc(nextLabel())}</b>.`}}
+    // play
+    const ev=S.lastEv,lead=ev==='start'?[S.passed?`${T[1-c]} passed! ${T[c]}, you’re playing.`:`${T[c]} are going to play!`,'Let’s go down the line.']:
+      ev==='hit'?[HITS[S.rev.filter(Boolean).length%HITS.length],left===1?'Just ONE answer left on the board!':`${left} answers left on the board.`]:
+      ev==='miss'?[S.strikes===1?'Ooh… that’s one strike.':'That’s TWO strikes! One more and the other family can steal.']:[];
+    return{h:`▶ ${T[c]} are playing · ${'❌'.repeat(S.strikes)}${'⬜'.repeat(3-S.strikes)}`,say:[...lead,`Next player: ${R.q}`,'(they answer)','Survey says…!'],
+      do:`Go down the line — one answer per person. On the board → tap it. Not on the board → <b>✕ STRIKE</b>. Clear the board to win the round; 3 strikes and the other family can steal.`};
   }
-  if(S.screen==='winner'){const [a,b]=S.teams,gw=GW();if(gw<0&&a.score===b.score)return{h:'🤝 Tie',say:'We’re all tied up — that means SUDDEN DEATH!',do:'Tap <b>Sudden death</b>.'};
-    const w=gw>=0?S.teams[gw]:a.score>b.score?a:b;return{h:'🏆 We have a winner',say:`Congratulations ${w.name}! You’re going to play FAST MONEY for the grand prize!`,
-    do:'Pick two players. Player 2 leaves the room (or wears headphones). Tap <b>💰 Go to Fast Money</b>.'}}
-  if(S.screen==='fm'){const F=S.fm,t=fmTotal();
-    if(F.won)return{h:'💰 WINNER!',say:`That’s ${t} points — YOU WIN FAST MONEY! Happy Friendsgiving everybody!`,do:'Take a bow, Steve. Undo is there if you need it.'};
-    if(F.player===0)return{h:'💰 Fast Money — Player 1',say:'Five questions, 20 seconds on the clock. Answer as fast as you can — if you get stuck, say “pass.” Ready? Start the clock!',
-      do:'Tap <b>▶ Start clock</b> and read the 5 questions fast. Write their answers in the P1 boxes as they talk (or after). Then, one at a time: <b>Show</b> → say “Survey says!” → <b>Survey says</b>. Then <b>Player 2</b> (it hides P1’s answers).'};
-    return{h:'💰 Fast Money — Player 2',say:`Player 1 got you ${t} points. You need ${Math.max(0,200-t)} more. 25 seconds — and if you repeat an answer you’ll hear this… (tap Duplicate) …and you give me another. Start the clock!`,
-      do:'Same as before in the P2 boxes. A repeat answer gives the duplicate buzzer automatically. When done, tap <b>Show P1 answers</b> for the big total.'};
+  if(S.screen==='winner'){const [a,b]=S.teams,gw=GW();if(gw<0&&a.score===b.score)return{h:'🤝 Tie game',say:[`We’re tied at ${a.score}!`,'That means… SUDDEN DEATH!'],do:'Tap <b>⚡ Sudden death</b>.'};
+    const w=gw>=0?gw:(a.score>b.score?0:1);return{h:'🏆 Winners',say:[`Congratulations, ${T[w]}! You won with ${S.teams[w].score} points!`,`${T[1-w]}, you played a great game. Give it up for them!`,
+      `${T[w]}, pick TWO people to play Fast Money. Player two, you’re heading out of the room so you can’t hear the answers.`],
+    do:'Send player 2 out of earshot (another room, or headphones with music). Then tap <b>💰 Go to Fast Money</b>.'}}
+  if(S.screen==='fm'){const F=S.fm,t=fmTotal(),p=F.player,st=F.stage||'ask',nx=fmNext(),full=p?25:20;
+    if(F.won)return{h:'💰 THEY WON!',say:[`That’s ${t} points…`,'YOU WIN FAST MONEY!!!','Happy Friendsgiving, everybody!'],do:nx?'Celebrate! Then reveal the rest of the answers if you want.':'Celebrate! Tap 🔀 New game below for a rematch.'};
+    if(st==='ask'){
+      if(p===0&&!F.running&&F.time===full)return{h:'💰 Fast Money — Player 1',say:['Welcome to Fast Money!','Five questions, twenty seconds on the clock.','If you can’t think of an answer, just say “pass,” and we’ll come back to it if there’s time.','Ready? Start the clock!'],
+        do:'Tap <b>▶ START CLOCK</b> as you read question 1. Read fast. Type each answer and hit return (only you see it — the TV stays blank). Blank = pass; if there’s time at the end, tap that box and ask it again.'};
+      if(p===1&&!F.running&&F.time===full)return{h:'💰 Fast Money — Player 2',say:[`Welcome back! Your partner scored ${t} points, so you need ${Math.max(0,200-t)} to win.`,'This time you get twenty-five seconds.','If you give me an answer your partner already gave, you’ll hear this…','(tap 🔁 Duplicate sound)','…and I’ll ask for another answer. Ready? Start the clock!'],
+        do:'Tap <b>▶ START CLOCK</b> as you read question 1. Type + return. If they repeat player 1’s answer, the TV buzzes automatically and you say “Try again!”'};
+      return{h:F.running?`⏱ Clock running — player ${p+1}`:`⏸ Clock paused — player ${p+1}`,say:['(read the next question — fast!)'],do:`Type + return after each answer. Out of time → it moves on by itself. Finished early? Tap <b>⏭ Done</b>.`};}
+    if(nx){const q=fmQ(nx.r),d=fmDraft(p,nx.r);
+      return nx.needText?{h:`🗣 Reveal ${nx.r+1} of 5 — player ${p+1}`,say:[`${q.q.replace(/[.?!]+$/,'')}…`,d?`You said ${d}.`:'You passed on that one.'],do:'Tap <b>Show answer</b> (it appears on the TV), then <b>Survey says</b>.'}
+        :{h:`🗣 Reveal ${nx.r+1} of 5 — player ${p+1}`,say:['Survey says…!'],do:'Tap <b>📊 Survey says</b>. Judge’s call? Change “counts as” under the answer.'};}
+    if(p===0)return{h:'✅ Player 1 done',say:[`That’s ${t} points!`,t>=200?'WAIT… you already did it!':`Let’s bring back player two!`],do:'Bring player 2 back in, then tap <b>Player 2 ▶</b> (it hides player 1’s answers on the TV).'};
+    return{h:'😬 So close',say:[`${t} points… you needed ${200-t} more.`,'You played a great game — give it up for them!','Happy Friendsgiving, everybody!'],do:'Tap <b>Show player 1’s answers</b> if you want, or 🔀 New game for a rematch.'};
   }
   return{h:'',say:'',do:''};
 }
+let FMD={};
+function fmKey(p,r){return p+'-'+S.set.fm[r]}
+function fmDraft(p,r){const c=S.fm.cells[p][r];return c.text||FMD[fmKey(p,r)]||''}
+function fmNext(){const F=S.fm,p=F.player;for(let r=0;r<5;r++){const c=F.cells[p][r];if(!c.shown)return{r,needText:!c.text}}return null}
+function fmEnter(p,r,el){const v=el.value.trim();FMD[fmKey(p,r)]=v;
+  if(p===1&&v){const q=fmQ(r),o=fmDraft(0,r),m=matchAnswer(v,q);if(o&&((m>=0&&m===matchAnswer(o,q))||norm(v)===norm(o))){dispatch('sound','dup');el.value='';FMD[fmKey(p,r)]='';
+    const n=document.getElementById('hdup');if(n){n.textContent=`🔁 DUPLICATE on #${r+1} — say “Try again!”`;n.style.display='block';setTimeout(()=>n.style.display='none',2500)}return}}
+  const nx=document.getElementById('in'+p+(r+1));if(nx)nx.focus();else el.blur()}
+function fmShow(p,r){dispatch('fmText',{p,r,text:fmDraft(p,r)||'(pass)'})}
 function fmHead(){const F=S.fm;return `Fast Money • Player ${F.player+1} • clock ${F.time}s${F.running?' ▶':''} • total ${fmTotal()}${F.won?' • WON!':''}`}
 function nextLabel(){const R=cur(),gw=GW(),L=roundsOf(S);
   if(R.sudden||(S.awarded&&gw>=0))return '🏆 Winner screen';
@@ -867,7 +908,7 @@ function renderHost(){
     restoreFocus(keep);return}
   const B=(label,cmd,arg,cls='')=>`<button class="hb ${cls}" onclick='dispatch(${JSON.stringify(cmd)},${JSON.stringify(arg===undefined?null:arg)})'>${label}</button>`;
   const sc=hostScript();
-  const script=sc.h?`<div class="hcard hscript"><h2>${esc(sc.h)}</h2><div class="hsay">🎤 ${q_(sc.say)}</div><div class="hdo">${sc.do}</div></div>`:'';
+  const script=sc.h?`<div class="hcard hscript"><h2>${esc(sc.h)}</h2>${(Array.isArray(sc.say)?sc.say:[sc.say]).filter(Boolean).map(l=>l.startsWith('(')?`<div class="hcue">${esc(l)}</div>`:`<div class="hsay">🎤 ${q_(l)}</div>`).join('')}<div class="hdo">${sc.do}</div></div>`:'';
   const scores=`<div class="hcard"><h2>Scores & team names</h2><div class="hscore">${S.teams.map((t,i)=>`<div>
     <input id="nm${i}" value="${esc(t.name)}" onchange="dispatch('rename',{t:${i},name:this.value})" style="width:100%;font-weight:800;font-size:16px;padding:6px;border-radius:8px;border:2px solid #8fb8ff;text-align:center">
     <div class="v">${t.score}</div>
@@ -882,7 +923,7 @@ function renderHost(){
     let act='',tap=false,note='';
     if(ph==='faceoff'&&fo.turn==null){act=`<div class="hgrid">${B('🔔 '+T[0],'buzz',0,'gold hbig')}${B('🔔 '+T[1],'buzz',1,'gold hbig')}</div>`;note='Who hit the buzzer first? Tap their team, then tap what they say.'}
     else if(ph==='faceoff'){tap=true;act=`<div class="hgrid">${B('✕ Not on the board','strike',null,'red hbig')}</div>`;const f=fo.first;
-      note=!f?`Answering: ${T[fo.turn]}. Tap what they said.`:f.i>=0?`${T[f.t]} said #${f.i+1}. ${T[fo.turn]} needs #1${f.i>1?'–#'+f.i:''} to win the face-off.`:`${T[f.t]} missed. Any answer on the board wins it for ${T[fo.turn]}.`}
+      note=!f?`Answering: ${T[fo.turn]}. Tap what they said.`:f.i>=0?`${T[f.t]} got #${f.i+1}. To win the face-off, ${T[fo.turn]} need ${f.i===1?'the #1 answer':'#1'+(f.i>1?'–#'+f.i:'')}.`:`${T[f.t]} missed. Any answer on the board wins it for ${T[fo.turn]}.`}
     else if(ph==='playpass'){act=`<div class="hgrid">${B('▶ PLAY','playpass','play','gold hbig')}${B('PASS ⇄','playpass','pass','hbig')}</div>`;note=`${T[S.foWin]} won the face-off — play or pass?`}
     else if(ph==='play'){tap=true;act=`<div class="hgrid">${B('✕ STRIKE','strike',null,'red hbig')}</div>`;note=`${T[S.control]} playing &nbsp; ${'❌'.repeat(S.strikes)}${'⬜'.repeat(3-S.strikes)}`}
     else if(ph==='steal'){tap=true;act=`<div class="hgrid">${B('✕ Wrong — '+T[S.control]+' keep it','strike',null,'red hbig')}</div>`;note=`${T[1-S.control]} can steal ${S.bank}. On the board? Tap it.`}
@@ -898,19 +939,33 @@ function renderHost(){
      ${B('Playing: '+T[0],'control',0,S.control===0?'sel':'')}${B('Playing: '+T[1],'control',1,S.control===1?'sel':'')}${B('✕ Strike','strike',null,'red')}${B('✕ Buzzer sound only','faceoffX',null,'red')}${B('Clear strikes','clearStrikes')}
      ${B('◀ Bank to '+T[0],'award',0,'gold')}${B('Bank to '+T[1]+' ▶','award',1,'gold')}${B('Reveal rest','revealAll')}${B('Next round ▶','next')}${B(S.showQ?'Hide question':'Show question','toggleQ')}<button class="hb" onclick="if(!${S.rev.some(Boolean)}||confirm('Swap in a different question? This round restarts.'))dispatch('swapRound')">🔀 Swap question</button></div></details>`;
   } else if(S.screen==='fm'){
-    const F=S.fm;
-    body=`<div class="hcard"><h2 id="hfmh">${fmHead()}</h2>
-     <div class="hgrid">${B(F.running?'⏸ Pause clock':'▶ Start clock','fmTimer',null,'gold')}${B('Reset clock','fmResetTimer')}${B('Player 1','fmPlayer',0,F.player===0?'sel':'')}${B('Player 2','fmPlayer',1,F.player===1?'sel':'')}
-     ${B(F.hide?'Show P1 answers':'Hide P1 answers','fmHide')}${B('Duplicate buzz','sound','dup','red')}${B('Buzzer','sound','buzz','red')}${B('↶ UNDO','undo',null,'gold')}<button class="hb" onclick="if(confirm('Erase ALL Fast Money answers?'))dispatch('fmResetAll')">Clear all</button></div></div>
-     <div class="hcard hfm">${[0,1,2,3,4].map(r=>{const q=fmQ(r);return `<div class="hfmrow"><div class="q">${r+1}. ${esc(q.q)} <button class="hb" style="padding:3px 8px;font-size:12px" onclick="if(confirm('Swap question ${r+1} for a different one?'))dispatch('swapFM',${r})">🔀 swap</button></div>
-       <div class="opts">${q.a.map(a=>`${esc(a.t)} <b>${a.p}</b>`).join(' · ')}</div>
-       ${[0,1].map(p=>{const c=F.cells[p][r];const v=cellPts(p,r);
-        return `<div class="line"><b>P${p+1}</b><input id="in${p}${r}" value="${esc(c.text)}" placeholder="their answer" onkeydown="if(event.key==='Enter')dispatch('fmText',{p:${p},r:${r},text:this.value})">
-         <button class="hb" onclick="dispatch('fmText',{p:${p},r:${r},text:document.getElementById('in${p}${r}').value})">Show</button>
-         <button class="hb gold" onclick='dispatch("fmReveal",{p:${p},r:${r}})'>${c.shown?'= '+v:'Survey says'}</button></div>
-         ${c.text?`<div class="line"><span class="m">counts as:</span><select onchange='dispatch("fmSet",{p:${p},r:${r},m:+this.value})'><option value="-1" ${c.m<0?'selected':''}>✕ not on board (0)</option>${q.a.map((a,i)=>`<option value="${i}" ${c.m===i?'selected':''}>${esc(a.t)} (${a.p})</option>`).join('')}</select></div>`:''}`}).join('')}</div>`}).join('')}</div>`;
+    const F=S.fm,p=F.player,st=F.stage||'ask',nx=fmNext(),full=p?25:20;
+    const si=p*2+(st==='reveal'?1:0)+(p===1&&st==='reveal'&&!nx?1:0);
+    const steps=`<div class="hsteps">${['P1 answers','P1 reveal','P2 answers','P2 reveal','Result'].map((x,k)=>`<span class="${k===si?'on':k<si?'past':''}">${x}</span>`).join('')}</div>`;
+    let act='';
+    if(F.won&&!nx)act=`<div class="hnote">🎉 ${fmTotal()} points — they won!</div>`;
+    else if(st==='ask')act=`<div class="hgrid">${B(F.running?'⏸ Pause clock':F.time<full?'▶ Resume clock':`▶ START CLOCK (${full}s)`,'fmTimer',null,'gold hbig')}${B('⏭ Done — reveal','fmStage','reveal','hbig')}</div>`+(p===1?`<div class="hgrid" style="margin-top:8px">${B('🔁 Duplicate sound','sound','dup','red')}</div>`:'');
+    else if(nx)act=nx.needText?`<div class="hgrid"><button class="hb gold hbig" onclick="fmShow(${p},${nx.r})">🗣 Show answer ${nx.r+1}: “${esc(fmDraft(p,nx.r)||'pass')}”</button></div>`:`<div class="hgrid">${B('📊 SURVEY SAYS!','fmReveal',{p,r:nx.r},'gold hbig')}</div>`;
+    else if(p===0)act=`<div class="hgrid">${B('Player 2 ▶','fmPlayer',1,'gold hbig')}</div>`;
+    else act=`<div class="hgrid">${F.hide?B('Show player 1’s answers','fmHide',null,'hbig'):''}</div>`;
+    const rows=[0,1,2,3,4].map(r=>{const q=fmQ(r),c=F.cells[p][r],v=cellPts(p,r),k=fmKey(p,r),o=F.cells[0][r];
+      return `<div class="hfmrow ${nx&&nx.r===r&&st==='reveal'?'cur':''}"><div class="q">${r+1}. ${esc(q.q)}</div>
+       ${p===1?`<div class="m" style="margin:2px 0 4px">Player 1 said: <b>${esc(fmDraft(0,r)||'—')}</b>${o.shown?` (${cellPts(0,r)})`:''}</div>`:''}
+       <div class="line"><input id="in${p}${r}" data-k="${k}" value="${esc(fmDraft(p,r))}" placeholder="${st==='ask'?'type answer + return':'(pass)'}" autocomplete="off" autocorrect="off" enterkeyhint="next" ${c.text?'disabled':''}
+         oninput="FMD[this.dataset.k]=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();fmEnter(${p},${r},this)}">
+         <span class="fmv">${c.shown?v:''}</span></div>
+       ${c.text?`<div class="line"><span class="m">counts as:</span><select onchange='dispatch("fmSet",{p:${p},r:${r},m:+this.value})'><option value="-1" ${c.m<0?'selected':''}>✕ not on board (0)</option>${q.a.map((a,i)=>`<option value="${i}" ${c.m===i?'selected':''}>${esc(a.t)} (${a.p})</option>`).join('')}</select>
+         <button class="hb" onclick="dispatch('fmClear',{p:${p},r:${r}})">✎ redo</button></div>`:''}
+       <div class="opts">${q.a.map(a=>`${esc(a.t)} <b>${a.p}</b>`).join(' · ')}</div></div>`}).join('');
+    body=`<div class="hcard hnow"><h2 id="hfmh">${fmHead()}</h2>${steps}<div id="hdup" class="hnote" style="display:none;background:#a8180b;color:#fff"></div>${act}</div>
+     <div class="hcard hfm">${rows}</div>
+     <details class="hcard hmore" ${moreOpen?'open':''} ontoggle="moreOpen=this.open"><summary>🛠 Fast Money fixes</summary><div class="hgrid" style="margin-top:8px">
+      ${B('Player 1','fmPlayer',0,p===0?'sel':'')}${B('Player 2','fmPlayer',1,p===1?'sel':'')}${B('Reset clock','fmResetTimer')}${B(st==='ask'?'Go to reveal':'Back to typing','fmStage',st==='ask'?'reveal':'ask')}
+      ${B(F.hide?'Show P1 answers':'Hide P1 answers','fmHide')}${B('🔁 Duplicate sound','sound','dup','red')}${B('✕ Buzzer','sound','buzz','red')}
+      ${[0,1,2,3,4].map(r=>`<button class="hb" onclick="if(confirm('Swap Fast Money question ${r+1} for a different one?'))dispatch('swapFM',${r})">🔀 Swap Q${r+1}</button>`).join('')}
+      <button class="hb" onclick="if(confirm('Erase ALL Fast Money answers?')){FMD={};dispatch('fmResetAll')}">Clear all</button></div></details>`;
   } else if(S.screen==='winner'){
-    body=`<div class="hcard"><h2>Winner screen</h2><div class="hgrid">${B('💰 Go to Fast Money','fm',null,'gold')}${B('Back to board','backToRound')}${B('Sudden death','round',roundsOf(S).length-1)}</div></div>`;
+    body=`<div class="hcard"><h2>Winner screen</h2><div class="hgrid">${GW()<0&&S.teams[0].score===S.teams[1].score?B('⚡ Sudden death','round',roundsOf(S).length-1,'gold hbig'):B('💰 Go to Fast Money','fm',null,'gold hbig')}${B('Back to board','backToRound')}${B('Sudden death','round',roundsOf(S).length-1)}</div></div>`;
   } else body=`<div class="hcard"><h2>Title screen</h2><div class="hgrid">${inGame()?B('▶ Back to the game','backToRound',null,'gold hbig'):B('▶ Start Round 1','round',0,'gold hbig')}</div></div>`;
   const CB=(label,cmd,arg,msg)=>`<button class="hb" onclick='if(${msg?'confirm('+JSON.stringify(msg).replace(/'/g,"&#39;")+')':'true'})dispatch(${JSON.stringify(cmd)},${JSON.stringify(arg)})'>${label}</button>`;
   const rep=i=>{const aw=S.awards&&S.awards[i];return aw?`Replay this round? The ${aw.p} points ${S.teams[aw.t].name} got in it will be taken back.`:(S.screen!=='round'||S.r!==i)&&S.rev.length&&!S.awarded&&S.screen==='round'?'Leave this round? Its board and bank will be cleared.':null};
