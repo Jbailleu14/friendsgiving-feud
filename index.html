@@ -230,6 +230,9 @@ body.host-mode{background:#06123a;font-family:"Helvetica Neue",Arial,sans-serif;
 .hnote{font-size:16px;color:#ffe9a8;background:#3b2a00;border-radius:8px;padding:8px 10px;margin:8px 0;font-weight:700}
 .htime{font-size:16px;font-weight:900;padding:8px 10px;border-radius:8px;margin:6px 0;background:#123177}
 .htime.out{background:#a8180b}
+#sndWarn{display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:999;background:#c4160b;color:#fff;border:3px solid #fff;border-radius:14px;padding:12px 22px;font:900 22px Arial;cursor:pointer;box-shadow:0 6px 30px #000}
+.hb.blue{background:#1d4fd8;border-color:#bcd0ff}
+.hsecs{display:flex;gap:6px;align-items:center;margin-top:8px;font-size:14px;color:#9fc3ff;font-weight:800}.hsecs .hb{flex:1;padding:8px 2px;font-size:15px}
 details.hmore summary{cursor:pointer;font-weight:800;color:#9fc3ff;font-size:15px;padding:4px 0}
 /* ---------- print cards ---------- */
 #print{display:none}
@@ -284,8 +287,8 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 
 function freshFM(){return {player:0,time:20,running:false,hide:false,sel:{p:0,r:0},won:false,
   cells:[0,1].map(()=>[0,1,2,3,4].map(()=>({text:'',m:-1,shown:false})))}}
-function freshGame(names){return {screen:'title',teams:[{name:names[0],score:0},{name:names[1],score:0}],set:drawSet(),r:0,rev:[],strikes:0,bank:0,awarded:false,showQ:true,fm:freshFM(),ph:'faceoff',fo:{buzz:null,turn:null,first:null},foWin:null,ak:null,akOut:false,akOn:true,akSec:5,gameWinner:null}}
-function roundsOf(st){return [...st.set.rounds.map((id,i)=>({...QBYID[id],m:st.set.m[i]})),{...QBYID[st.set.sd],m:3,sudden:true}]}
+function freshGame(names){return {screen:'title',teams:[{name:names[0],score:0},{name:names[1],score:0}],set:drawSet(),r:0,rev:[],strikes:0,bank:0,awarded:false,showQ:true,fm:freshFM(),ph:'faceoff',fo:{buzz:null,turn:null,first:null},foWin:null,ak:null,akOut:false,akOn:false,akSec:30,gameWinner:null}}
+function roundsOf(st){return [...st.set.rounds.map((id,i)=>({...QBYID[id],m:st.set.m[i]})),{...QBYID[st.set.sd],a:QBYID[st.set.sd].a.slice(0,1),m:3,sudden:true}]}
 function cur(){return roundsOf(S)[S.r]}
 function fmQ(r,st=S){return QBYID[st.set.fm[r]]}
 function cellPts(p,r,st=S){const c=st.fm.cells[p][r];if(!c.shown)return null;return c.m>=0?fmQ(r,st).a[c.m].p:0}
@@ -320,7 +323,8 @@ function tone(type,f,t0,dur,vol,opt={}){const a=ac(),o=a.createOscillator(),g=a.
   node.connect(g).connect(MASTER);o.start(t0);o.stop(t0+dur+.05)}
 function noiseBuf(sec,fill){const a=ac(),n=Math.floor(a.sampleRate*sec),b=a.createBuffer(1,n,a.sampleRate),d=b.getChannelData(0);fill(d,a.sampleRate);return b}
 const SND={
-  ding(){const t=ac().currentTime;tone('sine',1567,t,1.6,.45);tone('sine',3135,t,.9,.12);tone('triangle',784,t,1.2,.22);tone('sine',2350,t+.005,.5,.08)},
+  ding(){const t=ac().currentTime,bell=(f,d,v)=>[[1,1],[2,.5],[2.76,.3],[4.07,.16],[5.4,.08]].forEach(([r,a])=>tone('sine',f*r,t+d,2.2/(.5+r*.5),v*a,{att:.003}));
+    bell(1318.5,0,.42);bell(1975.5,.1,.34);tone('triangle',2637,t,.12,.12,{att:.002})},
   buzz(){const t=ac().currentTime;tone('sawtooth',138,t,.95,.38,{sus:1,lp:1400});tone('square',145,t,.95,.22,{sus:1,lp:1100});tone('sawtooth',69,t,.95,.25,{sus:1,lp:600})},
   dup(){const t=ac().currentTime;[0,.32].forEach(d=>{tone('sawtooth',138,t+d,.24,.35,{sus:1,lp:1400});tone('square',145,t+d,.24,.2,{sus:1,lp:1100})})},
   tick(){const t=ac().currentTime;tone('square',1100,t,.06,.15)},
@@ -346,16 +350,23 @@ const SLOTS=[['theme','🎵 Theme song','Title screen, Fast Money intro, winner 
   ['board','🟦 Board reveal','When the answer boxes appear after the splash'],['buzzin','🔔 Face-off buzzer','When you tap who hit the buzzer first'],
   ['ding','✅ Correct answer','Every answer that flips over'],['strike','❌ Strike buzzer','Strikes, face-off X, Fast Money zeros'],['award','👏 Points awarded','When the bank goes to a team'],
   ['fmclock','⏱ Fast Money clock','Loops while the Fast Money clock runs'],['timeup','⏰ Time’s up','Fast Money clock hits zero'],['win','🏆 Big win','Fast Money reaches 200']];
-const CUSTOM={},CNAME={};let music=null,musicKey=null;
+const CUSTOM={},CNAME={},SBLOB={},CBUF={};let music=null,musicKey=null,FILEOUT=null;
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('ffeud',1);r.onupgradeneeded=()=>r.result.createObjectStore('snd');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
 async function sndPut(k,file){const db=await idb();await new Promise((res,rej)=>{const t=db.transaction('snd','readwrite');file?t.objectStore('snd').put(file,k):t.objectStore('snd').delete(k);t.oncomplete=res;t.onerror=()=>rej(t.error)});
-  if(CUSTOM[k])URL.revokeObjectURL(CUSTOM[k]);delete CUSTOM[k];delete CNAME[k];if(file){CUSTOM[k]=URL.createObjectURL(file);CNAME[k]=file.name||'custom sound'}}
+  if(CUSTOM[k])URL.revokeObjectURL(CUSTOM[k]);delete CUSTOM[k];delete CNAME[k];delete SBLOB[k];delete CBUF[k];if(file){CUSTOM[k]=URL.createObjectURL(file);CNAME[k]=file.name||'custom sound';SBLOB[k]=file;await decodeSlot(k)}}
 async function sndLoadAll(){try{const db=await idb();await new Promise(res=>{const c=db.transaction('snd').objectStore('snd').openCursor();
-  c.onsuccess=()=>{const cur=c.result;if(!cur)return res();CUSTOM[cur.key]=URL.createObjectURL(cur.value);CNAME[cur.key]=cur.value.name||'custom sound';cur.continue()};c.onerror=res})}catch(e){}}
-function fadeOut(a,sec){const v0=a.volume,n=12;let i=0;const iv=setInterval(()=>{i++;a.volume=Math.max(0,v0*(1-i/n));if(i>=n){clearInterval(iv);a.pause()}},sec*1000/n)}
+  c.onsuccess=()=>{const cur=c.result;if(!cur)return res();CUSTOM[cur.key]=URL.createObjectURL(cur.value);CNAME[cur.key]=cur.value.name||'custom sound';SBLOB[cur.key]=cur.value;cur.continue()};c.onerror=res})}catch(e){}
+  await Promise.all(Object.keys(SBLOB).map(decodeSlot))}
+async function decodeSlot(k){try{const ab=await SBLOB[k].arrayBuffer();CBUF[k]=await new Promise((res,rej)=>ac().decodeAudioData(ab,res,rej))}catch(e){delete CBUF[k]}}
+function fadeOut(a,sec){if(a.stop)return a.stop(sec);const v0=a.volume,n=12;let i=0;const iv=setInterval(()=>{i++;a.volume=Math.max(0,v0*(1-i/n));if(i>=n){clearInterval(iv);a.pause()}},sec*1000/n)}
 function stopMusic(sec=.6){const m=music;music=null;musicKey=null;if(m)fadeOut(m,sec)}
-function playFile(k,o={}){if(muted||IS_HOST||!CUSTOM[k])return null;const a=new Audio(CUSTOM[k]);a.loop=!!o.loop;
-  if(o.music){stopMusic(.3);music=a;musicKey=k}a.play().catch(()=>{});if(o.max)setTimeout(()=>{if(!a.paused){fadeOut(a,1);if(music===a){music=null;musicKey=null}}},o.max*1000);return a}
+function playBuf(k,loop){const x=ac();if(!FILEOUT){FILEOUT=x.createGain();FILEOUT.gain.value=1;FILEOUT.connect(x.destination)}
+  const src=x.createBufferSource(),g=x.createGain();src.buffer=CBUF[k];src.loop=!!loop;src.connect(g).connect(FILEOUT);src.start();
+  const h={paused:false,stop(sec=.3){if(h.paused)return;h.paused=true;const t=x.currentTime;g.gain.cancelScheduledValues(t);g.gain.setValueAtTime(1,t);g.gain.linearRampToValueAtTime(0,t+sec);try{src.stop(t+sec+.05)}catch(e){}}};
+  src.onended=()=>{h.paused=true};return h}
+function playFile(k,o={}){if(muted||IS_HOST||!CUSTOM[k])return null;let a;
+  if(CBUF[k])a=playBuf(k,o.loop);else{a=new Audio(CUSTOM[k]);a.loop=!!o.loop;a.play().catch(()=>{})}
+  if(o.music){stopMusic(.3);music=a;musicKey=k}if(o.max)setTimeout(()=>{if(!a.paused){fadeOut(a,1);if(music===a){music=null;musicKey=null}}},o.max*1000);return a}
 /* every game moment goes through cue(): your file if you loaded one, otherwise the built-in sound */
 function cue(n){if(muted||IS_HOST)return;
   switch(n){
@@ -388,12 +399,16 @@ function send(msg){msg._f=ME;msg._i=ME+Math.random();if(bc)try{bc.postMessage(ms
   try{localStorage.setItem('ffeud_msg',JSON.stringify(msg))}catch(e){}
   if(IS_HOST){if(hconn&&hconn.open)try{hconn.send(msg)}catch(e){}}
   else conns.forEach(c=>{if(c.open)try{c.send(msg)}catch(e){}})}
+let FROM_REMOTE=false,SKEW=0;
 function onMsg(m){if(!m||m._f===ME||seen.has(m._i))return;seen.add(m._i);
-  if(IS_HOST){if(m.type==='state'){S=m.S;renderHost()}}
-  else{if(m.type==='cmd')dispatch(m.cmd,m.arg);else if(m.type==='hello')broadcast()}}
+  if(IS_HOST){if(m.type==='state'){if(m.now)SKEW=m.now-Date.now();const old=S;S=m.S;
+    const strip=x=>x&&x.fm?JSON.stringify({...x,fm:{...x.fm,time:0}}):JSON.stringify(x);
+    if(old&&S&&strip(old)===strip(S)&&old.fm.time!==S.fm.time){const el=document.getElementById('hfmh');if(el){el.textContent=fmHead();return}}
+    renderHost()}}
+  else{if(m.type==='cmd'){FROM_REMOTE=true;try{dispatch(m.cmd,m.arg)}finally{FROM_REMOTE=false}}else if(m.type==='hello')broadcast()}}
 if(bc)bc.onmessage=e=>onMsg(e.data);
 addEventListener('storage',e=>{if(e.key==='ffeud_msg'&&e.newValue)try{onMsg(JSON.parse(e.newValue))}catch(x){}});
-function broadcast(){if(!IS_HOST)send({type:'state',S})}
+function broadcast(){if(!IS_HOST)send({type:'state',S,now:Date.now()})}
 
 /* ---------- phone remote over the internet (PeerJS, free public broker) ---------- */
 const CODE_CH='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -443,7 +458,7 @@ function dial(){
 /* =====================================================================
    GAME LOGIC — every action goes through dispatch()
    ===================================================================== */
-const NO_UNDO=new Set(['undo','sound','tick','fmTimer','akOut','akGo','akStop','akToggle']);
+const NO_UNDO=new Set(['undo','sound','tick','fmTimer','fmSel','akOut','akGo','akStop','akToggle','akSec']);
 function dispatch(cmd,arg){
   if(IS_HOST){send({type:'cmd',cmd,arg});return}
   if(!S && cmd!=='start' && cmd!=='resume') return;
@@ -453,14 +468,14 @@ function dispatch(cmd,arg){
     case 'start': S=freshGame(arg.names);hist.length=0;fx.theme=1;break;
     case 'resume': S=arg;S.fm.running=false;if(!S.set){S.set=drawSet();S.r=0;if(S.screen!=='title')loadRound(0);S.fm=freshFM()}
       if(!S.fo)S.fo={buzz:null,turn:null,first:null};if(S.ph===undefined)S.ph=S.awarded?'done':S.control!=null?(S.strikes>=3?'steal':'play'):'faceoff';
-      if(S.akOn===undefined){S.akOn=true;S.akSec=5}if(S.gameWinner===undefined)S.gameWinner=null;S.ak=null;break;
-    case 'setup': stopTicker();save();S=null;render({});return;
+      if(S.akOn===undefined||S.akSec===5){S.akOn=false;S.akSec=30}if(S.gameWinner===undefined)S.gameWinner=null;S.ak=null;break;
+    case 'setup': stopTicker();save();S=null;render({});broadcast();return;
     case 'title': S.screen='title';fx.theme=1;break;
     case 'round': loadRound(arg);fx.splash=1;break;
-    case 'next':{const L=roundsOf(S).length,w=S.gameWinner!=null?S.gameWinner:leader300();
-      if(S.screen==='round'&&S.awarded&&(w>=0||cur().sudden)){if(w>=0)S.gameWinner=w;S.screen='winner';fx.win=1;akStop();break}
-      if(S.r<L-1){loadRound(S.r+1);fx.splash=1}else{S.screen='winner';fx.win=S.gameWinner!=null||S.teams[0].score!==S.teams[1].score}break}
-    case 'prev': if(S.r>0){loadRound(S.r-1);fx.splash=1}break;
+    case 'next':{if(S.screen!=='round'){hist.pop();return}const L=roundsOf(S).length,w=GW();
+      if(S.awarded&&(w>=0||cur().sudden)){S.screen='winner';fx.win=w>=0;break}
+      if(S.r<L-1){loadRound(S.r+1);fx.splash=1}else{S.screen='winner';fx.win=GW()>=0}break}
+    case 'prev': if(S.screen!=='round'||S.r<=0){hist.pop();return}loadRound(S.r-1);fx.splash=1;break;
     case 'toggleQ': S.showQ=!S.showQ;break;
     case 'ans':{const R=cur(),i=arg,ph=S.ph||'play';if(S.screen!=='round'||i<0||i>=R.a.length||S.rev[i]){hist.pop();return}
       if(ph==='playpass'||(ph==='faceoff'&&S.fo.turn==null)){hist.pop();return}
@@ -471,7 +486,8 @@ function dispatch(cmd,arg){
       break}
     case 'buzz': if(S.screen!=='round'||S.ph!=='faceoff'){hist.pop();return}S.fo={buzz:arg,turn:arg,first:null};akStart();fx.pulse=arg;fx.snd='buzzin';break;
     case 'playpass': if(S.ph!=='playpass'||S.foWin==null){hist.pop();return}S.control=arg==='pass'?1-S.foWin:S.foWin;S.ph='play';fx.pulse=S.control;akStart();break;
-    case 'akGo': if(S.screen==='round')akStart(S.ph==='steal'?15:null);break;
+    case 'akGo': if(S.screen==='round')akRun(S.akSec||30);break;
+    case 'akSec': S.akSec=+arg||30;if(S.ak)akRun(S.akSec);break;
     case 'akStop': akStop();break;
     case 'akToggle': S.akOn=S.akOn===false;if(!S.akOn)akStop();break;
     case 'akOut': if(!S.ak)return;S.ak=null;S.akOut=true;fx.flash='TIME!';fx.snd='timebeep';break;
@@ -483,15 +499,15 @@ function dispatch(cmd,arg){
       if(ph==='steal'){fx.x=1;fx.snd='buzz';doAward(S.control,fx);fx.later='award';break}
       if(ph==='done'||ph==='playpass'){fx.x=1;fx.snd='buzz';break}
       S.strikes=Math.min(3,S.strikes+1);fx.x=S.strikes;fx.snd='buzz';
-      if(S.strikes>=3&&S.control!=null){S.ph='steal';akStart(15);fx.flash='STEAL!'}else akStart();break}
+      if(S.strikes>=3&&S.control!=null){S.ph='steal';akStart();fx.flash='STEAL!'}else akStart();break}
     case 'faceoffX': fx.x=1;fx.snd='buzz';break;
-    case 'clearStrikes': S.strikes=0;if(S.ph==='steal')S.ph='play';break;
+    case 'clearStrikes': S.strikes=0;if(S.ph==='steal'){S.ph='play';akStop()}break;
     case 'award': if(S.awarded||S.bank<=0)break;doAward(arg,fx);fx.snd='award';break;
     case 'score': S.teams[arg.t].score=Math.max(0,S.teams[arg.t].score+arg.d);fx.pulse=arg.t;break;
     case 'rename': S.teams[arg.t].name=String(arg.name).slice(0,24)||S.teams[arg.t].name;break;
     case 'setScore': S.teams[arg.t].score=Math.max(0,Math.round(+arg.v||0));fx.pulse=arg.t;break;
     case 'control': S.control=arg;if(arg!=null){fx.pulse=arg;if(!S.awarded&&S.screen==='round'){S.ph=S.strikes>=3?'steal':'play';if(S.foWin==null)S.foWin=arg}}break;
-    case 'winner': S.screen='winner';akStop();fx.win=S.gameWinner!=null||S.teams[0].score!==S.teams[1].score;break;
+    case 'winner': S.screen='winner';fx.win=GW()>=0;break;
     case 'backToRound': S.screen='round';break;
     case 'fm': S.screen='fm';fx.splashFM=1;break;
     case 'fmTimer': if(S.fm.running){S.fm.running=false}else{if(S.fm.time<=0)S.fm.time=S.fm.player?25:20;S.fm.running=true}break;
@@ -520,17 +536,23 @@ function dispatch(cmd,arg){
       S.fm.cells[0][r]={text:'',m:-1,shown:false};S.fm.cells[1][r]={text:'',m:-1,shown:false};checkFMWin(fx);break}
     default: return;
   }
+  if(S&&!NO_UNDO.has(cmd)&&hist.length&&hist[hist.length-1]===JSON.stringify(S))hist.pop();
+  if(S){if(S.screen!=='fm')S.fm.running=false;if(S.screen!=='round')S.ak=null}
   if(fx.noState){if(fx.snd)sfx(fx.snd);renderFx(fx);return}
   save();render(fx);broadcast();
-  if(fx.reEdit)beginEdit(fx.reEdit.p,fx.reEdit.r);
+  if(fx.reEdit&&!FROM_REMOTE)beginEdit(fx.reEdit.p,fx.reEdit.r);
 }
-function loadRound(i){S.screen='round';S.r=i;S.rev=[];S.strikes=0;S.bank=0;S.awarded=false;S.awardedTo=null;S.showQ=true;S.control=null;S.ph='faceoff';S.fo={buzz:null,turn:null,first:null};S.foWin=null;S.ak=null;S.akOut=false}
+function loadRound(i){S.screen='round';S.r=i;S.rev=[];S.strikes=0;S.bank=0;S.awarded=false;S.awardedTo=null;S.showQ=true;S.control=null;S.started=true;const aw=S.awards&&S.awards[i];if(aw){S.teams[aw.t].score=Math.max(0,S.teams[aw.t].score-aw.p);delete S.awards[i]}if(roundsOf(S)[i].sudden)S.gameWinner=null;S.ph='faceoff';S.fo={buzz:null,turn:null,first:null};S.foWin=null;S.ak=null;S.akOut=false}
+function GW(){if(S.gameWinner!=null)return S.gameWinner;const [a,b]=S.teams;return Math.max(a.score,b.score)>=300&&a.score!==b.score?(a.score>b.score?0:1):-1}
+function inGame(){return !!(S.started||S.r>0||S.rev.length||S.teams[0].score||S.teams[1].score)}
 function nRounds(st=S){return st.set.rounds.length}
 function leader300(){return S.teams.findIndex(t=>t.score>=300)}
-function akStart(sec){S.akOut=false;if(S.akOn===false){S.ak=null;return}const d=sec||S.akSec||5;S.ak={end:Date.now()+d*1000,dur:d}}
+/* auto clock (only if the host turned it on); otherwise any new answer just stops a running clock */
+function akStart(){S.akOut=false;if(!S.akOn){S.ak=null;return}akRun(S.akSec||30)}
+function akRun(d){S.akOut=false;S.ak={end:Date.now()+d*1000,dur:d}}
 function akStop(){S.ak=null;S.akOut=false}
 function doAward(t,fx){if(S.awarded)return;S.teams[t].score+=S.bank;S.awarded=true;S.awardedTo=t;S.ph='done';akStop();fx.pulse=t;
-  if(cur().sudden||S.teams[t].score>=300)S.gameWinner=t}
+  if(cur().sudden)S.gameWinner=t;(S.awards=S.awards||{})[S.r]={t,p:S.bank}}
 /* face-off: first buzzer answers; #1 wins outright, otherwise the other player tries to beat it; two misses = next pair */
 function foAnswer(i,fx){const R=cur(),t=S.fo.turn,f=S.fo.first;
   if(i>=0){S.rev[i]=1;S.bank+=R.a[i].p*R.m;fx.flip=[i];fx.snd='ding'}else{fx.x=1;fx.snd='buzz'}
@@ -604,12 +626,12 @@ function roundHTML(){
   <div class="abs gold bank"><div class="nm">${S.awarded?'BANKED':'SCORE'}</div><div class="sc">${S.bank}</div><div class="mult">${R.sudden?'SUDDEN DEATH':MULT[R.m]+' POINTS'}</div></div>
   <div class="abs qbar ${S.showQ?'':'hide'}" style="font-size:${qfs}px">${esc(R.q)}</div>
   <div class="abs gold board"><div class="bin">${slots}</div></div>
-  <div class="abs foot"><span>${label} &bull; ${R.sudden?'TOP ANSWER WINS':MULT[R.m]+' POINTS'}</span>
+  <div class="abs foot"><span>${label} &bull; ${R.sudden?'SAY THE #1 ANSWER TO WIN':MULT[R.m]+' POINTS'}</span>
    <span class="ministrikes">${[1,2,3].map(n=>`<span class="${S.strikes>=n?'on':''}">✕</span>`).join('')}</span>
    <span>FIRST TO 300 PLAYS FAST MONEY</span></div>`;
 }
 function winnerHTML(){
-  const [a,b]=S.teams,gw=S.gameWinner,tie=gw==null&&a.score===b.score,w=gw!=null?S.teams[gw]:a.score>b.score?a:b;
+  const [a,b]=S.teams,gw=GW(),tie=gw<0&&a.score===b.score,w=gw>=0?S.teams[gw]:a.score>b.score?a:b;
   return `<div class="win">${tie?`<div class="t">It's a tie!</div><div class="s">Time for SUDDEN DEATH</div>`:
     `<div class="s">🦃 &nbsp;AND THE WINNER IS&nbsp; 🦃</div><div class="t">${esc(w.name)}</div><div class="s">They're playing for <span style="color:#ffd54a">FAST MONEY!</span></div>`}
     <div class="sc">${teamBox(0,0).replace('abs ','').replace('style="left:0px"','style="position:relative;top:0"')}${teamBox(1,0).replace('abs ','').replace('style="left:0px"','style="position:relative;top:0"')}</div></div>`;
@@ -643,7 +665,7 @@ function renderFx(fx){
   if(fx.later)setTimeout(()=>sfx(fx.later),1000);
   if(fx.splash){const R=cur();const d=document.createElement('div');d.className='splash';
     const sm='font-size:34px;margin-top:18px;text-shadow:none;color:#cfe0ff';
-    d.innerHTML=R.sudden?`<div class="big">SUDDEN DEATH</div><div class="sub">TRIPLE POINTS</div><div class="sub" style="${sm}">NOBODY HIT 300 • HIGHER ANSWER WINS THE GAME</div>`:`<div class="big">ROUND ${S.r+1}</div><div class="sub">${MULT[R.m]} POINTS</div><div class="sub" style="${sm}">ROUND ${S.r+1} OF ${nRounds()} • FIRST TO 300 WINS</div>`;
+    d.innerHTML=R.sudden?`<div class="big">SUDDEN DEATH</div><div class="sub">TRIPLE POINTS</div><div class="sub" style="${sm}">ONLY THE #1 ANSWER IS ON THE BOARD • SAY IT AND WIN</div>`:`<div class="big">ROUND ${S.r+1}</div><div class="sub">${MULT[R.m]} POINTS</div><div class="sub" style="${sm}">ROUND ${S.r+1} OF ${nRounds()} • FIRST TO 300 WINS</div>`;
     box.appendChild(d);cue('round');setTimeout(()=>{if(S&&S.screen==='round')cue('board')},2500);setTimeout(()=>d.remove(),2700)}
   if(fx.splashFM){const d=document.createElement('div');d.className='splash';d.innerHTML=`<div class="big">FAST MONEY</div><div class="sub">5 QUESTIONS • 200 POINTS TO WIN</div>`;
     box.appendChild(d);cue('fmIntro');setTimeout(()=>d.remove(),2700)}
@@ -745,22 +767,22 @@ addEventListener('keydown',e=>{
   if(k==='Escape'&&e.shiftKey){dispatch('setup');return}
   if(k==='Escape'&&$('#help').classList.contains('show')){toggleHelp();return}
   if(k==='u'||(e.ctrlKey&&k==='z')){dispatch('undo');return}
-  if(k==='m'){muted=!muted;toast(muted?'Sound OFF':'Sound ON');return}
+  if(k==='m'){muted=!muted;if(muted)stopMusic(.2);if(FILEOUT)FILEOUT.gain.value=muted?0:1;if(MASTER)MASTER.gain.value=muted?0:.9;toast(muted?'Sound OFF':'Sound ON');return}
   if(k==='a'){play('applause');return}
   if(k==='s'){cue('themeToggle');return}
   let handled=true;
-  if(S.screen==='title'){if(k===' '||k==='Enter')dispatch('round',S.r||0);else if(k==='g')dispatch('fm');else handled=false}
+  if(S.screen==='title'){if(k===' '||k==='Enter')dispatch(inGame()?'backToRound':'round',inGame()?null:0);else if(k==='g')dispatch('fm');else handled=false}
   else if(S.screen==='round'){
     if(/^[1-8]$/.test(k))dispatch('ans',+k-1);
     else if(S.ph==='faceoff'&&S.fo.turn==null&&(k==='ArrowLeft'||k==='ArrowRight'))dispatch('buzz',k==='ArrowLeft'?0:1);
     else if(S.ph==='playpass'&&(k==='ArrowLeft'||k==='ArrowRight'))dispatch('control',k==='ArrowLeft'?0:1);
     else if(k==='l')dispatch(S.ak?'akStop':'akGo');
     else if(k==='x')dispatch('strike');else if(k==='z')dispatch('faceoffX');else if(k==='c')dispatch('clearStrikes');
-    else if(k==='ArrowLeft')dispatch('award',0);else if(k==='ArrowRight')dispatch('award',1);
-    else if(k==='r')dispatch('revealAll');else if(k==='n')dispatch('next');else if(k==='b')dispatch('prev');
+    else if(k==='ArrowLeft'||k==='ArrowRight'){if(!S.ph||S.ph==='play'||S.ph==='steal')dispatch('award',k==='ArrowLeft'?0:1)}
+    else if(k==='r')dispatch('revealAll');else if(k==='n')dispatch('next');else if(k==='b'){const aw=S.awards&&S.awards[S.r-1];if(S.r>0&&(!aw||confirm('Replay round '+S.r+'? The '+aw.p+' points '+S.teams[aw.t].name+' got in it will be taken back.')))dispatch('prev')}
     else if(k==='q')dispatch('toggleQ');else if(k==='w')dispatch('winner');else if(k==='g')dispatch('fm');else if(k==='t')dispatch('title');
     else handled=false}
-  else if(S.screen==='winner'){if(k===' '||k==='Enter'||k==='g')dispatch('fm');else if(k==='b'||k==='Escape')dispatch('backToRound');else if(k==='n')dispatch('round',S.r);else handled=false}
+  else if(S.screen==='winner'){const tie=GW()<0&&S.teams[0].score===S.teams[1].score;if(k===' '||k==='Enter'||k==='g')tie?dispatch('round',roundsOf(S).length-1):dispatch('fm');else if(k==='b'||k==='Escape')dispatch('backToRound');else handled=false}
   else if(S.screen==='fm'){
     const F=S.fm,{p,r}=F.sel,c=F.cells[p][r];
     if(k===' ')dispatch('fmTimer');
@@ -791,12 +813,12 @@ function hostScript(){
   if(S.screen==='round'){
     const R=cur(),n=R.a.length,c=S.control,o=c==null?null:1-c,ph=S.ph||'play',fo=S.fo||{},left=R.a.filter((_,i)=>!S.rev[i]).length;
     const rl=R.sudden?'sudden death':`round ${S.r+1} of ${nRounds()}`;
-    if(ph==='done'){const w=S.awardedTo,gw=S.gameWinner;
-      if(gw!=null)return{h:'🏆 Game over!',say:`${T[gw]} WIN THE GAME with ${S.teams[gw].score} points! ${T[gw]}, you’re going to play FAST MONEY!`,do:`${left?'Tap <b>Reveal the rest</b> if you want, then ':''}tap <b>🏆 Winner screen</b>.`};
+    if(ph==='done'){const w=S.awardedTo,gw=GW();
+      if(gw>=0)return{h:'🏆 Game over!',say:`${T[gw]} WIN THE GAME with ${S.teams[gw].score} points! ${T[gw]}, you’re going to play FAST MONEY!`,do:`${left?'Tap <b>Reveal the rest</b> if you want, then ':''}tap <b>🏆 Winner screen</b>.`};
       return{h:'✅ Points awarded',say:`${T[w]} take ${S.bank} points! That puts you at ${S.teams[w].score}. Let’s see what else was up there…`,
         do:`${left?'Tap <b>Reveal the rest</b> (no points), then ':''}tap <b>${esc(nextLabel())}</b>.`}}
     if(ph==='faceoff'){
-      if(fo.turn==null)return{h:`🔔 Face-off — ${rl}`,say:(R.sudden?'Nobody reached 300, so it’s SUDDEN DEATH! Triple points, and the higher answer wins the whole game. ':'')+`We surveyed 100 people. Top ${n} answers are on the board. Hands on the buzzer… ${R.q}`,
+      if(fo.turn==null)return{h:`🔔 Face-off — ${rl}`,say:R.sudden?`Nobody reached 300, so it’s SUDDEN DEATH! Only the NUMBER ONE answer is on the board, and it’s worth triple points. Whoever says it wins the game. Hands on the buzzer… ${R.q}`:`We surveyed 100 people. Top ${n} answers are on the board. Hands on the buzzer… ${R.q}`,
         do:`Call one player from each team to the buzzer (new players every round). Read the question. When someone buzzes in, tap their team.`};
       const f=fo.first;
       if(!f)return{h:`🎤 ${T[fo.turn]} buzzed in`,say:`${T[fo.turn]}?`,do:`Tap the answer they said, or <b>✕ Not on the board</b>. The #1 answer wins the face-off on the spot.`};
@@ -804,13 +826,13 @@ function hostScript(){
         do:f.i>=0?`They need an answer <b>higher than #${f.i+1}</b>. Tap what they said, or ✕.`:`Any answer on the board wins. Tap it, or ✕ (then two new players face off).`}}
     if(ph==='playpass')return{h:`🤔 ${T[S.foWin]} won the face-off`,say:`${T[S.foWin]}, you won the face-off! Do you want to PLAY or PASS?`,do:'Tap <b>Play</b> or <b>Pass</b> for what they choose.'};
     if(ph==='steal')return{h:'🕵️ STEAL!',say:`That’s three strikes! ${T[o]}, huddle up. Give me ONE answer and you steal all ${S.bank} points.`,
-      do:`They get 15 seconds to talk it over, then the captain answers. On the board → tap it and they take the points. Not on the board → <b>✕ Wrong</b> and ${esc(T[c])} keep them.`};
+      do:`Let them huddle (tap <b>⏱ Start clock</b> if you want to time it), then the captain answers. On the board → tap it and they take the points. Not on the board → <b>✕ Wrong</b> and ${esc(T[c])} keep them.`};
     const lines=['Good answer! Good answer!','Survey says…!','Show me…!','I like it, I like it!'];
     return{h:`▶ ${T[c]} are playing`,say:S.strikes?`${S.strikes} strike${S.strikes>1?'s':''}… careful now. Next player.`:`${lines[(S.rev.filter(Boolean).length)%lines.length]} Next player.`,
       do:`Go down the line, one answer per player. On the board → tap it. Not on the board → <b>✕ STRIKE</b>. ${left} answer${left!==1?'s':''} left. Clear the board to win the round; 3 strikes and the other team can steal.`};
   }
-  if(S.screen==='winner'){const [a,b]=S.teams,gw=S.gameWinner;if(gw==null&&a.score===b.score)return{h:'🤝 Tie',say:'We’re all tied up — that means SUDDEN DEATH!',do:'Tap <b>Sudden death</b>.'};
-    const w=gw!=null?S.teams[gw]:a.score>b.score?a:b;return{h:'🏆 We have a winner',say:`Congratulations ${w.name}! You’re going to play FAST MONEY for the grand prize!`,
+  if(S.screen==='winner'){const [a,b]=S.teams,gw=GW();if(gw<0&&a.score===b.score)return{h:'🤝 Tie',say:'We’re all tied up — that means SUDDEN DEATH!',do:'Tap <b>Sudden death</b>.'};
+    const w=gw>=0?S.teams[gw]:a.score>b.score?a:b;return{h:'🏆 We have a winner',say:`Congratulations ${w.name}! You’re going to play FAST MONEY for the grand prize!`,
     do:'Pick two players. Player 2 leaves the room (or wears headphones). Tap <b>💰 Go to Fast Money</b>.'}}
   if(S.screen==='fm'){const F=S.fm,t=fmTotal();
     if(F.won)return{h:'💰 WINNER!',say:`That’s ${t} points — YOU WIN FAST MONEY! Happy Friendsgiving everybody!`,do:'Take a bow, Steve. Undo is there if you need it.'};
@@ -821,7 +843,8 @@ function hostScript(){
   }
   return{h:'',say:'',do:''};
 }
-function nextLabel(){const R=cur(),gw=S.gameWinner!=null?S.gameWinner:leader300(),L=roundsOf(S);
+function fmHead(){const F=S.fm;return `Fast Money • Player ${F.player+1} • clock ${F.time}s${F.running?' ▶':''} • total ${fmTotal()}${F.won?' • WON!':''}`}
+function nextLabel(){const R=cur(),gw=GW(),L=roundsOf(S);
   if(R.sudden||(S.awarded&&gw>=0))return '🏆 Winner screen';
   if(S.r+1<L.length&&L[S.r+1].sudden)return '⚡ Sudden death';
   return `Round ${S.r+2} ▶`}
@@ -835,6 +858,8 @@ function linkHTML(){
 function renderHost(){
   const h=$('#host');
   const ae=document.activeElement,keep=ae&&ae.id&&ae.tagName==='INPUT'?{id:ae.id,v:ae.value,s:ae.selectionStart}:null;
+  const drafts={};h.querySelectorAll('input[id^="in"]').forEach(i=>{if(i.value!==i.defaultValue)drafts[i.id]=i.value});
+  if(!S&&linkState==='connected'){h.innerHTML=`<h1>🦃 Host Remote</h1>${linkHTML()}<div class="hcard"><h2>Waiting for the laptop</h2><div class="hdo">You’re connected. On the laptop, click <b>▶ START NEW GAME</b> (or <b>↻ Resume saved game</b>) and your controls show up here.</div></div>`;return}
   if(!S){h.innerHTML=`<h1>🦃 Host Remote</h1>${linkHTML()}<div class="hcard"><h2>Connect to the TV</h2>
      <div class="hdo">On the TV laptop, open the game. The setup screen shows a 4-letter <b>room code</b>. Enter it here:</div>
      <div class="hrow"><input id="roomIn" maxlength="4" autocomplete="off" autocapitalize="characters" value="${esc(ROOM||localStorage.getItem('ffeud_hostroom')||'')}"><button class="hb gold" onclick="connectHost(document.getElementById('roomIn').value)">Connect</button></div>
@@ -863,19 +888,20 @@ function renderHost(){
     else if(ph==='steal'){tap=true;act=`<div class="hgrid">${B('✕ Wrong — '+T[S.control]+' keep it','strike',null,'red hbig')}</div>`;note=`${T[1-S.control]} can steal ${S.bank}. On the board? Tap it.`}
     else{tap=true;const more=R.a.some((_,i)=>!S.rev[i]);act=`<div class="hgrid">${more?B('Reveal the rest','revealAll',null,'hbig'):''}${B(esc(nextLabel()),'next',null,'gold hbig')}</div>`;
       note=S.awardedTo!=null?`${T[S.awardedTo]} got the points. Tapping answers now just shows them.`:''}
-    const clock=S.akOut?`<div class="htime out">⏰ TIME! If they didn’t answer, tap ✕</div>`:S.ak?`<div class="htime">⏱ ${S.ak.dur}-second answer clock running on the TV</div>`:'';
+    const clock=(S.akOut?`<div class="htime out">⏰ TIME’S UP! If they didn’t answer, tap ✕</div>`:'')+(ph==='done'?'':S.ak?`<div class="hgrid">${B('⏹ Stop clock — <span id="hak"></span>','akStop',null,'hbig')}</div>`:`<div class="hgrid">${B('⏱ Start '+(S.akSec||30)+'-sec clock','akGo',null,'hbig blue')}</div>`);
     const list=R.a.map((a,i)=>`<div class="hans ${S.rev[i]?'done':''} ${tap?'':'dim'}" ${tap&&!S.rev[i]?`onclick='dispatch("ans",${i})'`:''}><span class="n">${i+1}</span>${esc(a.t)}<span class="p">${a.p}${R.m>1?' ×'+R.m:''}</span></div>`).join('');
     body=`<div class="hcard hnow"><h2>${R.sudden?'⚡ Sudden death':'Round '+(S.r+1)+' of '+nRounds()} • ${MULT[R.m]} POINTS • Bank ${S.bank}</h2>${stepsHTML}
-     <div class="hq">${esc(R.q)}</div>${note?`<div class="hnote">${note}</div>`:''}${clock}${act}<div style="margin-top:10px">${list}</div>
-     <div class="hgrid" style="margin-top:10px">${B('↶ UNDO','undo',null,'gold')}${B(S.ak?'⏹ Stop clock':'⏱ Answer clock',S.ak?'akStop':'akGo')}${B(S.akOn===false?'Auto clock: OFF':'Auto clock: ON','akToggle',null,S.akOn===false?'':'sel')}</div></div>
+     <div class="hq">${esc(R.q)}</div>${note?`<div class="hnote">${note}</div>`:''}${act}${clock}<div style="margin-top:10px">${list}</div>
+     <div class="hgrid" style="margin-top:10px">${B('↶ UNDO','undo',null,'gold')}${B(S.akOn?'Auto-start clock: ON':'Auto-start clock: OFF','akToggle',null,S.akOn?'sel':'')}</div>
+     <div class="hsecs"><span>Clock length:</span>${[10,20,30,45,60].map(n=>B(n+'s','akSec',n,(S.akSec||30)===n?'sel':'')).join('')}</div></div>
      <details class="hcard hmore" ${moreOpen?'open':''} ontoggle="moreOpen=this.open"><summary>🛠 Manual fixes (only if something goes wrong)</summary><div class="hgrid" style="margin-top:8px">
      ${B('Playing: '+T[0],'control',0,S.control===0?'sel':'')}${B('Playing: '+T[1],'control',1,S.control===1?'sel':'')}${B('✕ Strike','strike',null,'red')}${B('✕ Buzzer sound only','faceoffX',null,'red')}${B('Clear strikes','clearStrikes')}
      ${B('◀ Bank to '+T[0],'award',0,'gold')}${B('Bank to '+T[1]+' ▶','award',1,'gold')}${B('Reveal rest','revealAll')}${B('Next round ▶','next')}${B(S.showQ?'Hide question':'Show question','toggleQ')}<button class="hb" onclick="if(!${S.rev.some(Boolean)}||confirm('Swap in a different question? This round restarts.'))dispatch('swapRound')">🔀 Swap question</button></div></details>`;
   } else if(S.screen==='fm'){
     const F=S.fm;
-    body=`<div class="hcard"><h2>Fast Money • Player ${F.player+1} • clock ${F.time}s • total ${fmTotal()}${F.won?' • WON!':''}</h2>
+    body=`<div class="hcard"><h2 id="hfmh">${fmHead()}</h2>
      <div class="hgrid">${B(F.running?'⏸ Pause clock':'▶ Start clock','fmTimer',null,'gold')}${B('Reset clock','fmResetTimer')}${B('Player 1','fmPlayer',0,F.player===0?'sel':'')}${B('Player 2','fmPlayer',1,F.player===1?'sel':'')}
-     ${B(F.hide?'Show P1 answers':'Hide P1 answers','fmHide')}${B('Duplicate buzz','sound','dup','red')}${B('Buzzer','sound','buzz','red')}${B('↶ UNDO','undo',null,'gold')}${B('Clear all','fmResetAll')}</div></div>
+     ${B(F.hide?'Show P1 answers':'Hide P1 answers','fmHide')}${B('Duplicate buzz','sound','dup','red')}${B('Buzzer','sound','buzz','red')}${B('↶ UNDO','undo',null,'gold')}<button class="hb" onclick="if(confirm('Erase ALL Fast Money answers?'))dispatch('fmResetAll')">Clear all</button></div></div>
      <div class="hcard hfm">${[0,1,2,3,4].map(r=>{const q=fmQ(r);return `<div class="hfmrow"><div class="q">${r+1}. ${esc(q.q)} <button class="hb" style="padding:3px 8px;font-size:12px" onclick="if(confirm('Swap question ${r+1} for a different one?'))dispatch('swapFM',${r})">🔀 swap</button></div>
        <div class="opts">${q.a.map(a=>`${esc(a.t)} <b>${a.p}</b>`).join(' · ')}</div>
        ${[0,1].map(p=>{const c=F.cells[p][r];const v=cellPts(p,r);
@@ -885,13 +911,17 @@ function renderHost(){
          ${c.text?`<div class="line"><span class="m">counts as:</span><select onchange='dispatch("fmSet",{p:${p},r:${r},m:+this.value})'><option value="-1" ${c.m<0?'selected':''}>✕ not on board (0)</option>${q.a.map((a,i)=>`<option value="${i}" ${c.m===i?'selected':''}>${esc(a.t)} (${a.p})</option>`).join('')}</select></div>`:''}`}).join('')}</div>`}).join('')}</div>`;
   } else if(S.screen==='winner'){
     body=`<div class="hcard"><h2>Winner screen</h2><div class="hgrid">${B('💰 Go to Fast Money','fm',null,'gold')}${B('Back to board','backToRound')}${B('Sudden death','round',roundsOf(S).length-1)}</div></div>`;
-  } else body=`<div class="hcard"><h2>Title screen</h2><div class="hgrid">${B('▶ Start Round 1','round',0,'gold')}</div></div>`;
-  const nav=`<div class="hcard"><h2>Game</h2><div class="hgrid">${B('Title','title')}${B('◀ Prev round','prev')}${B('Next round ▶','next')}${B('🏆 Winner','winner')}${B('💰 Fast Money','fm')}${B('↶ UNDO','undo',null,'gold')}
+  } else body=`<div class="hcard"><h2>Title screen</h2><div class="hgrid">${inGame()?B('▶ Back to the game','backToRound',null,'gold hbig'):B('▶ Start Round 1','round',0,'gold hbig')}</div></div>`;
+  const CB=(label,cmd,arg,msg)=>`<button class="hb" onclick='if(${msg?'confirm('+JSON.stringify(msg).replace(/'/g,"&#39;")+')':'true'})dispatch(${JSON.stringify(cmd)},${JSON.stringify(arg)})'>${label}</button>`;
+  const rep=i=>{const aw=S.awards&&S.awards[i];return aw?`Replay this round? The ${aw.p} points ${S.teams[aw.t].name} got in it will be taken back.`:(S.screen!=='round'||S.r!==i)&&S.rev.length&&!S.awarded&&S.screen==='round'?'Leave this round? Its board and bank will be cleared.':null};
+  const nav=`<div class="hcard"><h2>Game</h2><div class="hgrid">${B('Title','title')}${S.screen==='round'?CB('◀ Prev round','prev',null,S.r>0?rep(S.r-1):null)+B('Next round ▶','next'):''}${B('🏆 Winner','winner')}${B('💰 Fast Money','fm')}${B('↶ UNDO','undo',null,'gold')}
      ${B('🎵 Theme on/off','sound','theme')}${B('⏹ Stop music','sound','stopMusic')}${B('👏 Applause','sound','applause')}${B('🔔 Ding','sound','ding')}<button class="hb red" onclick="if(confirm('Start a brand-new game with new questions? Scores reset to 0.'))dispatch('newGame')">🔀 New game (new questions)</button></div></div>`;
-  const jump=`<div class="hcard"><h2>Jump to round</h2><div class="hgrid">${roundsOf(S).map((R,i)=>B((R.sudden?'Sudden death':'R'+(i+1))+' ×'+R.m,'round',i,S.screen==='round'&&S.r===i?'sel':'')).join('')}</div></div>`;
+  const jump=`<div class="hcard"><h2>Jump to round</h2><div class="hgrid">${roundsOf(S).map((R,i)=>CB((S.screen==='round'&&S.r===i?'● ':'')+(R.sudden?'Sudden death':'R'+(i+1))+' ×'+R.m,'round',i,rep(i))).join('')}</div></div>`;
+  setTimeout(()=>{for(const id in drafts){const i=document.getElementById(id);if(i&&i!==document.activeElement)i.value=drafts[id]}});
   h.innerHTML=`<h1>🦃 Host Remote</h1>${linkHTML()}${script}${body}${scores}${nav}${jump}<div class="hcard"><button class="hb" onclick="printCards()">🖨 Print host cards</button></div>`;
   restoreFocus(keep);
 }
+setInterval(()=>{if(!IS_HOST||!S||!S.ak)return;const el=document.getElementById('hak');if(el)el.textContent=Math.max(0,Math.ceil((S.ak.end-Date.now()-SKEW)/1000))+'s left'},250);
 function restoreFocus(keep){if(!keep)return;const el=document.getElementById(keep.id);if(el){el.value=keep.v;el.focus();try{el.setSelectionRange(keep.s,keep.s)}catch(e){}}}
 
 /* ---------- Printable host cards ---------- */
@@ -910,7 +940,9 @@ function fit(){const s=Math.min(innerWidth/1600,innerHeight/900);$('#stage').sty
 if(IS_HOST){document.body.className='host-mode';document.documentElement.style.background='#06123a';$('#wrap').style.display='none';$('#host').style.display='block';renderHost();send({type:'hello'});
   const hc=(location.hash.split('=')[1]||'').toUpperCase();if(hc)connectHost(hc)}
 else{document.body.className='board-mode';addEventListener('resize',fit);fit();render({});startBoardPeer();sndLoadAll().then(()=>{if(!S)render({})});
-  document.addEventListener('pointerdown',()=>ac(),{once:true});document.addEventListener('keydown',()=>ac(),{once:true})}
+  const unlock=()=>{const a=ac();if(a.state!=='running')a.resume()};document.addEventListener('pointerdown',unlock);document.addEventListener('keydown',unlock);
+  const sw=document.createElement('div');sw.id='sndWarn';sw.textContent='🔊 Click here to turn on the game sound';sw.onclick=unlock;document.body.appendChild(sw);
+  setInterval(()=>{sw.style.display=(!muted&&(!AC||AC.state!=='running'))?'block':'none'},700)}
 </script>
 </body>
 </html>
